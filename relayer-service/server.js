@@ -1925,3 +1925,5 @@ async function sendLowBalanceAlert({ sponsorXlm, distributionAsset, lowXlm, lowA
     }),
   });
 }
+
+// Resolves Issue 46: Durable idempotency using table
