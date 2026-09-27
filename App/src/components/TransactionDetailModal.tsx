@@ -11,7 +11,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
-import { convertAssetToINR, formatINR } from '../utils/currency';
+import { formatMoneyAmount } from '../utils/currency';
 import { formatDateLong } from '../utils/date';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash, getExplorerUrl, isValidTransactionHash } from '../services/blockchain';
@@ -72,7 +72,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const isReceived = transaction.to_address?.toLowerCase() === currentWallet?.toLowerCase();
   const amount = parseFloat(transaction.amount);
-  const inrAmount = convertAssetToINR(amount);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -144,10 +143,10 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                   styles.amountValue,
                   { color: isMerchantView || isReceived ? '#10b981' : COLORS.text },
                 ]}
-                accessibilityLabel={`Amount: ${isMerchantView || isReceived ? 'received' : 'sent'} ${formatINR(inrAmount)}`}
+                accessibilityLabel={`Amount: ${isMerchantView || isReceived ? 'received' : 'sent'} ${formatMoneyAmount(amount)}`}
                 maxFontSizeMultiplier={1.3}
               >
-                {isMerchantView || isReceived ? '+' : '-'}{formatINR(inrAmount)}
+                {isMerchantView || isReceived ? '+' : '-'}{formatMoneyAmount(amount)}
               </Text>
             </View>
 
