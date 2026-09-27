@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { A11Y } from '../utils/strings';
 
-const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
+import { InitialAvatar } from './InitialAvatar';
+
 const APP_LOGO = require('../../assets/cpay_logo.png');
 
 export interface MerchantQRCardProps {
@@ -40,14 +41,18 @@ export const MerchantQRCard: React.FC<MerchantQRCardProps> = ({
   return (
     <View style={styles.card}>
       <View style={styles.identity}>
-        <Image
-          source={logoUrl ? { uri: logoUrl } : DEFAULT_MERCHANT_LOGO}
-          style={styles.logo}
-          onError={onLogoError}
-          accessible
-          accessibilityLabel={A11Y.MERCHANT_LOGO(name)}
-          accessibilityRole="image"
-        />
+        {logoUrl ? (
+          <Image
+            source={{ uri: logoUrl }}
+            style={styles.logo}
+            onError={onLogoError}
+            accessible
+            accessibilityLabel={A11Y.MERCHANT_LOGO(name)}
+            accessibilityRole="image"
+          />
+        ) : (
+          <InitialAvatar name={name} size={72} style={styles.logo} />
+        )}
         <Text style={styles.businessName} numberOfLines={2}>
           {name}
         </Text>

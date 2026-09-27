@@ -17,12 +17,11 @@ import { MONEY_UNIT_LABEL, convertINRtoAsset, formatMoneyAmount } from '../utils
 import { generateSignedQRPayload } from '../utils/qrCode';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
-import { Screen, Header, AmountInput, Button, MerchantQRCard, MerchantQRActions } from '../components';
+import { Screen, Header, AmountInput, Button, MerchantQRCard, MerchantQRActions, InitialAvatar } from '../components';
 import { AlertManager } from '../utils/alert';
 import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
-const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
 
 interface MerchantQRGeneratorScreenProps {
   navigation: any;
@@ -190,7 +189,7 @@ export const MerchantQRGeneratorScreen: React.FC<MerchantQRGeneratorScreenProps>
             {logoUrl ? (
               <Image source={{ uri: logoUrl }} style={styles.headerLogo} onError={() => setLogoUrl(null)} />
             ) : (
-              <Image source={DEFAULT_MERCHANT_LOGO} style={styles.headerLogo} />
+              <InitialAvatar name={businessName} size={48} style={styles.headerLogo} />
             )}
             <Text style={styles.title}>Create Payment QR</Text>
             <Text style={styles.subtitle}>

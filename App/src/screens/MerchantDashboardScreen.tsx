@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { InitialAvatar } from '../components/InitialAvatar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getMerchantProfile,
@@ -28,7 +29,6 @@ import { formatTransactionHash } from '../services/blockchain';
 import { AlertManager } from '../utils/alert';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
-const DEFAULT_MERCHANT_LOGO = require('../../assets/default-merchant-image-cryptopay.png');
 
 const TX_STATUS = {
   success: { label: 'Confirmed', color: COLORS.success, bg: COLORS.successBg },
