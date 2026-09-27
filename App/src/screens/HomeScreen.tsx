@@ -16,7 +16,7 @@ import { startTransactionPolling, stopTransactionPolling } from '../services/tra
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { getTransactions, saveTransaction, Transaction, storageEvents } from '../services/storage';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { MONEY_BALANCE_LABEL, MONEY_SYMBOL, formatMoneyAmount } from '../utils/currency';
 import { PILOT_NOTICE_TEXT, PILOT_NOTICE_TITLE } from '../utils/pilot';
 import { usePaymentIntent } from '../hooks/usePaymentIntent';
@@ -154,6 +154,7 @@ const getAddMoneyTitle = (phase: AddMoneyPhase): string => {
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+  useTheme();
   const [balance, setBalance] = useState<string>('0');
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -705,7 +706,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   balanceCard: {
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
@@ -812,7 +813,7 @@ const styles = StyleSheet.create({
   },
   emptyDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
-});
+}));

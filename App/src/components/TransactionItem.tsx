@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, TYPOGRAPHY, createThemedStyles, useTheme } from '../constants/theme';
 import { formatDateShort } from '../utils/date';
 import { convertAssetToINR, formatINR } from '../utils/currency';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
@@ -82,7 +82,7 @@ const getStatusConfig = (status: string, internalStatus?: string) => {
         label: 'Unknown',
         a11yLabel: A11Y.STATUS_UNKNOWN,
         icon: 'help-circle' as const,
-        color: COLORS.textSecondary,
+        color: COLORS.textMuted,
         bg: COLORS.background,
       };
   }
@@ -93,6 +93,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   onPress,
   currentWallet,
 }) => {
+  useTheme();
   const [displayName, setDisplayName] = useState<string>('Loading...');
   const isReceived = transaction.to_address?.toLowerCase() === currentWallet?.toLowerCase();
 
@@ -185,7 +186,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
         </View>
         <View style={styles.transactionAmountContainer}>
           <Text
-            style={[styles.transactionAmount, { color: isReceived ? '#10b981' : COLORS.text }]}
+            style={[styles.transactionAmount, { color: isReceived ? COLORS.transactionIncoming : COLORS.text }]}
             importantForAccessibility="no-hide-descendants"
           >
             {isReceived ? '+' : '-'}{formattedAmount}
@@ -209,7 +210,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   container: {
     backgroundColor: COLORS.card,
     borderRadius: 12,
@@ -248,7 +249,7 @@ const styles = StyleSheet.create({
   },
   transactionDate: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   transactionAmountContainer: {
     alignItems: 'flex-end',
@@ -274,4 +275,4 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },
-});
+}));
