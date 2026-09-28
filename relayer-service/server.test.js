@@ -46,8 +46,6 @@ function makeBearerToken(sub) {
 // Real Ed25519 public keys so assertAccountId passes without mocking Stellar.
 const WALLET_A = 'GAHT4QYQNAQIZQQ7AFCBULV5FDCZIXF6GVVK4PBVLM3H52UHLMIDLQQ';
 const WALLET_B = 'GBJ3FIJHKQHC6LDLQZFNM3Y7DUJTKPBWT4SVBP4CJPVVYDCUYLPFV3S';
-const MERCHANT_WALLET_A = 'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGKZPWRP2Q7J2I64LQL2YO';
-const MERCHANT_WALLET_B = 'GD3HVWGMWL4KKBLJCWKLMJ4YCFUIVJJXQ7NZTRHBWNJJ4HQNMWCRQF3';
 
 // Supabase user IDs.
 const USER_A = 'user-a-uid';
@@ -60,13 +58,11 @@ const USER_B = 'user-b-uid';
  * We replace it with a controllable mock before the server module is loaded.
  *
  * Route table (called in order):
- *   /auth/v1/user          → verifySupabaseTokenWithAuthApi (sub from token header)
- *   /rest/v1/users?…       → resolveUserWallets
- *   /rest/v1/merchants?…   → requireMerchantOwnership
+ *   /auth/v1/user      → verifySupabaseTokenWithAuthApi (sub from token header)
+ *   /rest/v1/users?... → resolveUserWallets
  */
 function buildFetchMock({
   userWallets = {},         // { [authUid]: string[] }
-  merchantRows = {},        // { [authUid]: string[] }  wallet_address values
 } = {}) {
   return async function mockFetch(url, options) {
     const urlStr = String(url);
@@ -87,25 +83,13 @@ function buildFetchMock({
       return makeResponse(true, 200, { id: sub, aud: 'authenticated', role: 'authenticated' });
     }
 
-    // ── users table ──────────────────────────────────────────────────────────
-    if (urlStr.includes('/rest/v1/users')) {
+    // ── wallet_bindings table ─────────────────────────────────────────────────
+    if (urlStr.includes('/rest/v1/wallet_bindings')) {
       const parsed = new URL(urlStr);
       const authUserIdFilter = parsed.searchParams.get('auth_user_id') || '';
       const uid = authUserIdFilter.replace(/^eq\./, '');
       const wallets = (userWallets[uid] || []).map(w => ({ wallet_address: w }));
       return makeResponse(true, 200, wallets);
-    }
-
-    // ── merchants table ──────────────────────────────────────────────────────
-    if (urlStr.includes('/rest/v1/merchants')) {
-      const parsed = new URL(urlStr);
-      const authUserIdFilter = parsed.searchParams.get('auth_user_id') || '';
-      const walletFilter = parsed.searchParams.get('wallet_address') || '';
-      const uid = authUserIdFilter.replace(/^eq\./, '');
-      const requestedWallet = walletFilter.replace(/^eq\./, '');
-      const ownedWallets = merchantRows[uid] || [];
-      const rows = ownedWallets.includes(requestedWallet) ? [{ wallet_address: requestedWallet }] : [];
-      return makeResponse(true, 200, rows);
     }
 
     // Fallback – should not be reached in these tests.
@@ -149,12 +133,11 @@ async function loadServer(env = {}) {
     STELLAR_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015',
     SPONSOR_SECRET: 'SCTIPFZ5KVBOENXTZK3FQPIGR5H73R5HE2MNZ4AXA7CA7JEEXUG5AF5G',
     DISTRIBUTION_SECRET: 'SBMJSD66AECV4CKZWTHXCH4EDZ5CRAZNNZL4OQP6IQAR4YLQ6HE5QJDM',
-    CPINR_ASSET_ISSUER: 'GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ',
+    USDC_ASSET_ISSUER: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     SUPABASE_URL: 'http://localhost:9999/supabase',
     SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
     RELAYER_AUTH_REQUIRED: 'true',
-    ENABLE_ADD_MONEY: 'true',
-    CONTRACT_FLOW_ENABLED: 'false',
+    ENABLE_TESTNET_FAUCET: 'true',
     PORT: '0',
   };
 
@@ -230,8 +213,8 @@ afterEach(async () => {
     'STELLAR_HORIZON_URL', 'ALLOW_HTTP_SOROBAN_RPC', 'ALLOW_CUSTOM_SOROBAN_RPC',
     'SOROBAN_RPC_URL', 'STELLAR_NETWORK_PASSPHRASE', 'SPONSOR_SECRET',
     'DISTRIBUTION_SECRET', 'CPINR_ASSET_ISSUER', 'SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY', 'RELAYER_AUTH_REQUIRED', 'ENABLE_ADD_MONEY',
-    'CONTRACT_FLOW_ENABLED', 'PORT',
+    'SUPABASE_SERVICE_ROLE_KEY', 'RELAYER_AUTH_REQUIRED', 'ENABLE_TESTNET_FAUCET',
+    'PORT',
   ];
   ADDED_KEYS.forEach(k => delete process.env[k]);
   jest.resetModules();
@@ -314,98 +297,6 @@ describe('/add-money ownership', () => {
 
     expect(status).toBe(403);
     expect(body.code).toBe('WALLET_OWNERSHIP_DENIED');
-  });
-});
-
-// ── /payments/intents/prepare ────────────────────────────────────────────────
-
-describe('/payments/intents/prepare ownership', () => {
-  let expressApp;
-
-  beforeEach(async () => {
-    expressApp = await loadServer({
-      CONTRACT_FLOW_ENABLED: 'false',
-      __fetchMock: buildFetchMock({
-        userWallets: { [USER_A]: [WALLET_A] },
-      }),
-    });
-  });
-
-  it('blocks payer wallet that does not belong to the authenticated user', async () => {
-    const { status, body } = await postJson(
-      expressApp,
-      '/payments/intents/prepare',
-      {
-        payer: WALLET_B,
-        merchantId: 'merchant-01',
-        merchantAddress: MERCHANT_WALLET_A,
-        amount: '10',
-      },
-      { Authorization: makeBearerToken(USER_A) }
-    );
-
-    expect(status).toBe(403);
-    expect(body.code).toBe('WALLET_OWNERSHIP_DENIED');
-  });
-
-  it('allows payer wallet that matches the authenticated user', async () => {
-    const { status, body } = await postJson(
-      expressApp,
-      '/payments/intents/prepare',
-      {
-        payer: WALLET_A,
-        merchantId: 'merchant-01',
-        merchantAddress: MERCHANT_WALLET_A,
-        amount: '10',
-      },
-      { Authorization: makeBearerToken(USER_A) }
-    );
-
-    // Passes ownership; downstream may fail (contract flow disabled),
-    // but not with 403 WALLET_OWNERSHIP_DENIED.
-    expect(status).not.toBe(403);
-    expect(body.code).not.toBe('WALLET_OWNERSHIP_DENIED');
-  });
-});
-
-// ── /contract/merchants/register ─────────────────────────────────────────────
-
-describe('/contract/merchants/register ownership', () => {
-  let expressApp;
-
-  beforeEach(async () => {
-    expressApp = await loadServer({
-      CONTRACT_FLOW_ENABLED: 'false',
-      __fetchMock: buildFetchMock({
-        userWallets: { [USER_A]: [WALLET_A] },
-        merchantRows: { [USER_A]: [MERCHANT_WALLET_A] },
-      }),
-    });
-  });
-
-  it('allows merchant registration when walletAddress belongs to the authenticated user', async () => {
-    const { status, body } = await postJson(
-      expressApp,
-      '/contract/merchants/register',
-      { merchantId: 'merchant-01', walletAddress: MERCHANT_WALLET_A },
-      { Authorization: makeBearerToken(USER_A) }
-    );
-
-    // Passes ownership; downstream may fail (contract flow disabled).
-    expect(status).not.toBe(403);
-    expect(body.code).not.toBe('MERCHANT_OWNERSHIP_DENIED');
-  });
-
-  it('blocks merchant registration when walletAddress belongs to another user', async () => {
-    const { status, body } = await postJson(
-      expressApp,
-      '/contract/merchants/register',
-      { merchantId: 'merchant-01', walletAddress: MERCHANT_WALLET_B },
-      { Authorization: makeBearerToken(USER_A) }
-    );
-
-    expect(status).toBe(403);
-    expect(body.code).toBe('MERCHANT_OWNERSHIP_DENIED');
   });
 });
 

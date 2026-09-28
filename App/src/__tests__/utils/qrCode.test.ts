@@ -9,7 +9,7 @@
 jest.mock('../../services/blockchain', () => ({
   getNetworkConfig: () => ({
     network: 'testnet',
-    assetCode: 'CPINR',
+    assetCode: 'USDC',
     assetIssuer: 'GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ',
   }),
   isValidAccountId: (id: string) =>
@@ -52,7 +52,7 @@ describe('generatePaymentQR', () => {
     const qr = generatePaymentQR(VALID_MERCHANT, '50', 'Shop');
     const data = JSON.parse(qr);
     expect(data.network).toBe('stellar-testnet');
-    expect(data.assetCode).toBe('CPINR');
+    expect(data.assetCode).toBe('USDC');
     expect(data.assetIssuer).toBe(VALID_ISSUER);
   });
 
@@ -85,7 +85,7 @@ describe('parsePaymentQR', () => {
       version: 2,
       network: 'stellar-testnet',
       merchant: VALID_MERCHANT,
-      assetCode: 'CPINR',
+      assetCode: 'USDC',
       assetIssuer: VALID_ISSUER,
       amount: '100',
       name: 'Test Shop',
@@ -135,7 +135,7 @@ describe('validatePaymentQR', () => {
       version: 2,
       network: 'stellar-testnet',
       merchant: VALID_MERCHANT,
-      assetCode: 'CPINR',
+      assetCode: 'USDC',
       assetIssuer: VALID_ISSUER,
       amount: '100',
       name: 'Test Shop',

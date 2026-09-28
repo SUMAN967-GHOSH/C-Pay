@@ -23,30 +23,30 @@ const NETWORKS = {
   },
 };
 
+const USDC_ISSUERS = {
+  testnet: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  public: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+};
+
 const config = loadConfig();
 const server = new StellarSdk.Horizon.Server(config.horizonUrl, {
   allowHttp: config.horizonUrl.startsWith('http://'),
 });
 const sponsorKeypair = StellarSdk.Keypair.fromSecret(config.sponsorSecret);
 const distributionKeypair = StellarSdk.Keypair.fromSecret(config.distributionSecret);
-const relayerContractKeypair = config.relayerSecret
-  ? StellarSdk.Keypair.fromSecret(config.relayerSecret)
-  : null;
-const contractAdminKeypair = config.contractAdminSecret
-  ? StellarSdk.Keypair.fromSecret(config.contractAdminSecret)
-  : null;
-const cpinrAsset = new StellarSdk.Asset(config.assetCode, config.assetIssuer);
-const sorobanServer = config.sorobanRpcUrl
-  ? new StellarSdk.rpc.Server(config.sorobanRpcUrl, {
-    allowHttp: config.sorobanRpcUrl.startsWith('http://'),
-  })
-  : null;
-const cpayContract = config.cpayContractId
-  ? new StellarSdk.Contract(config.cpayContractId)
-  : null;
-const idempotencyCache = new Map();
-const addMoneyCooldowns = new Map();
-const contractIntentCache = new Map();
+const usdcAsset = new StellarSdk.Asset(config.assetCode, config.assetIssuer);
+
+const { IngestWorker } = require('./ingestWorker');
+const ingestWorker = new IngestWorker({
+  horizonUrl: config.horizonUrl,
+  assetCode: config.assetCode,
+  assetIssuer: config.assetIssuer,
+  supabaseUrl: config.supabaseUrl,
+  supabaseServiceRoleKey: config.supabaseServiceRoleKey,
+  pollIntervalMs: config.ingestPollIntervalMs,
+  pendingTimeoutMs: config.ingestPendingTimeoutMs,
+  startCursor: config.ingestStartCursor,
+});
 
 let lowBalanceAlertSent = false;
 
@@ -75,22 +75,24 @@ app.get('/', (_req, res) => {
       'GET /account/:accountId/balance',
       'POST /accounts/prepare',
       'POST /accounts/submit',
-      'POST /contract/merchants/register',
-      'POST /merchants/send-contact-otp',
-      'POST /merchants/verify-contact-otp',
-      'GET /contract/config',
-      'POST /payments/intents/prepare',
-      'POST /payments/intents/submit',
       'POST /payments/submit',
-      'POST /qr/issue',
-      'POST /qr/verify',
       'POST /add-money',
       'GET /tx/:hash',
+      'GET /ingest/health',
     ],
   });
 });
 
-app.get('/health', async (_req, res) => {
+app.get('/ingest/health', (_req, res) => {
+  res.json(ingestWorker.getHealth());
+});
+
+// Keep the public probe free of infrastructure and account data.
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.get('/health/detailed', requireAuthenticatedUser, async (_req, res) => {
   const [sponsorBalances, distributionBalances] = await Promise.all([
     getBalances(sponsorKeypair.publicKey()),
     getBalances(distributionKeypair.publicKey()),
@@ -116,27 +118,25 @@ app.get('/health', async (_req, res) => {
     sponsorPublicKey: sponsorKeypair.publicKey(),
     distributionPublicKey: distributionKeypair.publicKey(),
     sponsorXlmBalance: sponsorBalances.xlm,
-    distributionCpinrBalance: distributionBalances.asset,
-    contractFlowEnabled: config.contractFlowEnabled,
+    distributionUsdcBalance: distributionBalances.asset,
     authRequired: config.authRequired,
     authApiConfigured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
     legacyJwtSecretConfigured: Boolean(config.supabaseJwtSecret),
     supabasePersistenceEnabled: isSupabasePersistenceEnabled(),
-    cpayContractId: config.cpayContractId,
-    tokenContractId: config.tokenContractId,
-    sorobanRpcUrl: config.sorobanRpcUrl,
     qrSigningConfigured: Boolean(config.qrSigningSecret),
+    ingest: ingestWorker.getHealth(),
     lowXlm,
     lowAsset,
     timestamp: new Date().toISOString(),
   });
 });
 
-app.get('/account/:accountId/status', async (req, res) => {
+app.get('/account/:accountId/status', requireAuthenticatedUser, requirePathWalletOwnership(), async (req, res) => {
   const accountId = assertAccountId(req.params.accountId, 'accountId');
+  const authUserId = req.auth && req.auth.sub ? req.auth.sub : null;
   const [status, retryAfterSeconds] = await Promise.all([
     getAccountStatus(accountId),
-    getAddMoneyRetryAfterSeconds(accountId),
+    getAddMoneyRetryAfterSeconds(accountId, authUserId),
   ]);
 
   res.json({
@@ -146,7 +146,7 @@ app.get('/account/:accountId/status', async (req, res) => {
   });
 });
 
-app.get('/account/:accountId/balance', async (req, res) => {
+app.get('/account/:accountId/balance', requireAuthenticatedUser, requirePathWalletOwnership(), async (req, res) => {
   const accountId = assertAccountId(req.params.accountId, 'accountId');
   const balances = await getBalances(accountId);
   res.json({
@@ -158,8 +158,49 @@ app.get('/account/:accountId/balance', async (req, res) => {
   });
 });
 
-app.post('/accounts/prepare', requireAuthenticatedUser, requireWalletOwnership('accountId'), async (req, res) => {
+app.post('/accounts/prepare', requireAuthenticatedUser, async (req, res) => {
   const accountId = assertAccountId(req.body.accountId, 'accountId');
+
+  if (config.authRequired) {
+    const authUid = req.auth && req.auth.sub;
+    if (!authUid) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED',
+      });
+    }
+
+    if (isSupabasePersistenceEnabled()) {
+      const existingOwner = await resolveWalletOwner(accountId);
+      if (existingOwner && existingOwner !== authUid) {
+        return res.status(403).json({
+          error: 'You are not authorized to prepare this wallet (already bound to another user)',
+          code: 'WALLET_OWNERSHIP_DENIED',
+        });
+      }
+
+      if (!existingOwner) {
+        const ownedWallets = await resolveUserWallets(authUid);
+        if (ownedWallets && ownedWallets.length >= config.maxSponsoredAccountsPerUser) {
+          return res.status(403).json({
+            error: `Maximum sponsored accounts limit (${config.maxSponsoredAccountsPerUser}) reached for this user`,
+            code: 'SPONSORSHIP_LIMIT_EXCEEDED',
+            maxAccounts: config.maxSponsoredAccountsPerUser,
+          });
+        }
+
+        try {
+          await bindWalletToUser(authUid, accountId);
+        } catch (err) {
+          console.error('Failed to bind wallet:', err.message);
+        }
+      }
+    }
+  }
+
+  // Check sponsor balance alarm
+  checkSponsorBalanceAlarm().catch(() => {});
+
   const status = await getAccountStatus(accountId);
 
   if (status.exists && status.hasTrustline) {
@@ -188,7 +229,7 @@ app.post('/accounts/prepare', requireAuthenticatedUser, requireWalletOwnership('
   }
 
   builder.addOperation(StellarSdk.Operation.changeTrust({
-    asset: cpinrAsset,
+    asset: usdcAsset,
     limit: config.trustlineLimit,
     source: accountId,
   }));
@@ -212,9 +253,17 @@ app.post('/accounts/prepare', requireAuthenticatedUser, requireWalletOwnership('
   });
 });
 
-app.post('/accounts/submit', requireAuthenticatedUser, async (req, res) => {
+app.post('/accounts/submit', requireAuthenticatedUser, requireWalletOwnership(), async (req, res) => {
   const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const tx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, config.passphrase);
+  
+  if (req.resolvedWallets && !req.resolvedWallets.includes(tx.source)) {
+    return res.status(403).json({
+      error: 'You are not authorized to submit transactions for this wallet',
+      code: 'WALLET_OWNERSHIP_DENIED',
+    });
+  }
+
   const result = await server.submitTransaction(tx);
 
   res.json({
@@ -224,179 +273,34 @@ app.post('/accounts/submit', requireAuthenticatedUser, async (req, res) => {
   });
 });
 
-app.get('/contract/config', async (_req, res) => {
-  assertContractFlowEnabled();
-
-  const contractConfig = await readContractConfig();
-  res.json({
-    ...contractConfig,
-    contractId: config.cpayContractId,
-    tokenContractId: config.tokenContractId,
-    network: config.networkName,
-  });
-});
-
-app.post('/contract/merchants/register', requireAuthenticatedUser, requireMerchantOwnership('walletAddress'), async (req, res) => {
-  assertContractFlowEnabled();
-  assertContractAdminConfigured();
-
-  const merchantId = normalizeMerchantId(req.body.merchantId);
-  const walletAddress = assertAccountId(req.body.walletAddress, 'walletAddress');
-  const result = await registerMerchantOnContract(merchantId, walletAddress);
-
-  res.json({
-    status: 'success',
-    merchantId,
-    walletAddress,
-    ...result,
-  });
-});
-
-app.post('/payments/intents/prepare', requireAuthenticatedUser, requireWalletOwnership('payer'), async (req, res) => {
-  assertContractFlowEnabled();
-
-  const payer = assertAccountId(req.body.payer, 'payer');
-  const merchantId = normalizeMerchantId(req.body.merchantId);
-  const merchantAddress = assertAccountId(req.body.merchantAddress, 'merchantAddress');
-  const amount = normalizeAmount(req.body.amount, config.maxPaymentAmount);
-  const note = normalizeOptionalString(req.body.note).slice(0, 160);
-  const amountUnits = amountToContractUnits(amount);
-  const merchantKey = merchantIdToContractKeyHex(merchantId);
-  const registeredMerchant = await readContractMerchantByKey(merchantKey);
-
-  if (!registeredMerchant) {
-    return res.status(409).json({
-      error: 'Merchant is not registered on the C-Pay contract yet',
-      code: 'CONTRACT_MERCHANT_MISSING',
-    });
-  }
-
-  if (!registeredMerchant.active) {
-    return res.status(409).json({
-      error: 'Merchant is currently inactive on the C-Pay contract',
-      code: 'CONTRACT_MERCHANT_INACTIVE',
-    });
-  }
-
-  if (registeredMerchant.account !== merchantAddress) {
-    return res.status(409).json({
-      error: 'Merchant QR account does not match the contract registry',
-      code: 'CONTRACT_MERCHANT_MISMATCH',
-      registeredAccount: registeredMerchant.account,
-    });
-  }
-
-  const intentId = crypto.randomBytes(32).toString('hex');
-  const expiresAt = Math.floor(Date.now() / 1000) + config.contractIntentTtlSeconds;
-  const memoHash = crypto
-    .createHash('sha256')
-    .update(JSON.stringify({
-      payer,
-      merchantId,
-      merchantAddress,
-      amount,
-      note,
-      intentId,
-    }))
-    .digest('hex');
-
-  const xdr = await prepareContractInvocation({
-    sourceAccountId: payer,
-    method: 'create_intent',
-    args: [
-      accountAddressScVal(payer),
-      bytes32ScVal(merchantKey),
-      bytes32ScVal(intentId),
-      i128ScVal(amountUnits),
-      u64ScVal(expiresAt),
-      bytes32ScVal(memoHash),
-    ],
-  });
-
-  const cachedIntent = {
-    intentId,
-    merchantId,
-    merchantKey,
-    merchantAddress,
-    payer,
-    amount,
-    amountUnits: amountUnits.toString(),
-    expiresAt,
-    memoHash,
-    status: 'prepared',
-  };
-
-  await cacheContractIntent(intentId, cachedIntent);
-
-  res.json({
-    intentId,
-    merchantId,
-    merchantAddress,
-    payer,
-    amount,
-    amountUnits: amountUnits.toString(),
-    expiresAt,
-    memoHash,
-    xdr,
-    networkPassphrase: config.passphrase,
-    contractId: config.cpayContractId,
-  });
-});
-
-app.post('/payments/intents/submit', requireAuthenticatedUser, async (req, res) => {
-  assertContractFlowEnabled();
-
-  const intentId = normalizeIntentId(req.body.intentId);
-  const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
-  const transaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr, config.passphrase);
-  const cachedIntent = await getCachedContractIntent(intentId);
-
-  if (cachedIntent && transaction.source !== cachedIntent.payer) {
-    return res.status(400).json({
-      error: 'Signed payment intent source does not match the payer',
-      code: 'CONTRACT_INTENT_SOURCE_MISMATCH',
-    });
-  }
-
-  const result = await submitSignedSorobanTransaction(transaction);
-  const createdIntent = {
-    ...(cachedIntent || {}),
-    intentId,
-    status: 'created',
-    createTxHash: result.hash,
-    createLedger: result.ledger,
-  };
-
-  await cacheContractIntent(intentId, createdIntent);
-
-  res.json({
-    status: 'success',
-    intentId,
-    hash: result.hash,
-    ledger: result.ledger,
-    contractId: config.cpayContractId,
-  });
-});
-
-app.post('/payments/submit', requireAuthenticatedUser, async (req, res) => {
+app.post('/payments/submit', requireAuthenticatedUser, requireWalletOwnership(), async (req, res) => {
   const signedXdr = assertTransactionEnvelopeXdr(req.body.signedXdr);
   const idempotencyKey = normalizeOptionalString(req.body.idempotencyKey);
-  const intentId = normalizeOptionalIntentId(req.body.intentId);
 
   if (idempotencyKey) {
-    const cached = await getIdempotencyResponse(idempotencyKey);
-    if (cached) {
-      return res.json(cached);
+    const lock = await acquireIdempotencyLock(idempotencyKey, config.idempotencyTtlMs);
+    if (!lock.acquired) {
+      if (lock.response === null) {
+        return res.status(409).json({
+          error: 'A request with this idempotency key is currently processing',
+          code: 'IDEMPOTENCY_IN_FLIGHT',
+          retryAfterSeconds: 5,
+        });
+      }
+      return res.json(lock.response);
     }
   }
 
   const innerTransaction = StellarSdk.TransactionBuilder.fromXDR(signedXdr, config.passphrase);
-  const payment = validatePaymentTransaction(innerTransaction);
-
-  if (intentId) {
-    assertContractFlowEnabled();
-    await verifyPaymentMatchesContractIntent(intentId, payment);
+  
+  if (req.resolvedWallets && !req.resolvedWallets.includes(innerTransaction.source)) {
+    return res.status(403).json({
+      error: 'You are not authorized to submit transactions for this wallet',
+      code: 'WALLET_OWNERSHIP_DENIED',
+    });
   }
+
+  validatePaymentTransaction(innerTransaction);
 
   const maxFee = (BigInt(config.baseFee) * BigInt(config.feeBumpMultiplier)).toString();
   const feeBump = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
@@ -408,32 +312,11 @@ app.post('/payments/submit', requireAuthenticatedUser, async (req, res) => {
   feeBump.sign(sponsorKeypair);
 
   const result = await server.submitTransaction(feeBump);
-  let contractConfirmation = null;
-
-  if (intentId) {
-    try {
-      contractConfirmation = await confirmContractIntent(intentId, result.hash);
-    } catch (error) {
-      contractConfirmation = {
-        status: 'failed',
-        error: error.message,
-      };
-      console.error('Contract confirmation failed after Stellar payment submission:', {
-        intentId,
-        paymentHash: result.hash,
-        error: error.message,
-      });
-    }
-  }
 
   const response = {
     hash: result.hash,
     ledger: result.ledger,
     status: 'success',
-    ...(intentId ? {
-      intentId,
-      contractConfirmation,
-    } : {}),
   };
 
   if (idempotencyKey) {
@@ -454,81 +337,115 @@ app.post('/add-money', requireAuthenticatedUser, requireWalletOwnership('account
   const accountId = assertAccountId(req.body.accountId, 'accountId');
   const amount = normalizeAmount(req.body.amount || config.addMoneyAmount, config.maxAddMoneyAmount);
   const idempotencyKey = normalizeOptionalString(req.body.idempotencyKey);
+  const authUserId = req.auth && req.auth.sub ? req.auth.sub : null;
+  const userLockKey = `add-money-user:${authUserId || accountId}`;
 
   if (idempotencyKey) {
-    const cached = await getIdempotencyResponse(idempotencyKey);
-    if (cached) {
-      return res.json(cached);
+    const lock = await acquireIdempotencyLock(idempotencyKey, config.idempotencyTtlMs);
+    if (!lock.acquired) {
+      if (lock.response === null) {
+        return res.status(409).json({
+          error: 'A request with this idempotency key is currently processing',
+          code: 'IDEMPOTENCY_IN_FLIGHT',
+          retryAfterSeconds: 5,
+        });
+      }
+      return res.json(lock.response);
     }
   }
 
-  const status = await getAccountStatus(accountId);
-  if (!status.exists || !status.hasTrustline) {
-    return res.status(409).json({
-      error: 'Account is not ready to receive Add Money balance',
-      code: 'ACCOUNT_NOT_READY',
-    });
-  }
-
-  const retryAfterSeconds = await getAddMoneyRetryAfterSeconds(accountId);
-  if (retryAfterSeconds > 0) {
+  // Acquire user-level lock to prevent concurrent claims (race condition)
+  const userLock = await acquireAddMoneyUserLock(userLockKey, config.transactionTimeoutSeconds * 1000 + 5000);
+  if (!userLock.acquired) {
     return res.status(429).json({
-      error: 'Add Money is cooling down for this account',
-      code: 'ADD_MONEY_COOLDOWN',
-      retryAfterSeconds,
+      error: 'An Add Money request is already in progress for this account',
+      code: 'ADD_MONEY_IN_FLIGHT',
+      retryAfterSeconds: 5,
     });
   }
 
-  const distributionBalances = await getBalances(distributionKeypair.publicKey());
-  if (Number(distributionBalances.asset || '0') < Number(amount)) {
-    return res.status(503).json({
-      error: `Add Money is temporarily unavailable because the relayer distribution account has insufficient ${config.assetCode}.`,
-      code: 'DISTRIBUTION_LOW_ASSET',
-      distributionBalance: distributionBalances.asset,
-      requiredAmount: amount,
-    });
-  }
+  try {
+    const status = await getAccountStatus(accountId);
+    if (!status.exists || !status.hasTrustline) {
+      return res.status(409).json({
+        error: 'Account is not ready to receive Add Money balance',
+        code: 'ACCOUNT_NOT_READY',
+      });
+    }
 
-  const distributionAccount = await server.loadAccount(distributionKeypair.publicKey());
-  const tx = new StellarSdk.TransactionBuilder(distributionAccount, {
-    fee: config.baseFee,
-    networkPassphrase: config.passphrase,
-  })
-    .addOperation(StellarSdk.Operation.payment({
-      destination: accountId,
-      asset: cpinrAsset,
+    const retryAfterSeconds = await getAddMoneyRetryAfterSeconds(accountId, authUserId);
+    if (retryAfterSeconds > 0) {
+      return res.status(429).json({
+        error: 'Add Money is cooling down for this account',
+        code: 'ADD_MONEY_COOLDOWN',
+        retryAfterSeconds,
+      });
+    }
+
+    const dailyCapCheck = await checkAddMoneyDailyCap(accountId, authUserId, amount);
+    if (!dailyCapCheck.allowed) {
+      return res.status(429).json({
+        error: 'Daily Add Money limit reached. Please try again later.',
+        code: 'ADD_MONEY_DAILY_CAP_EXCEEDED',
+        retryAfterSeconds: dailyCapCheck.retryAfterSeconds,
+        dailyCap: config.maxAddMoneyDailyCap,
+        claimedToday: dailyCapCheck.totalClaimed,
+      });
+    }
+
+    const distributionBalances = await getBalances(distributionKeypair.publicKey());
+    if (Number(distributionBalances.asset || '0') < Number(amount)) {
+      return res.status(503).json({
+        error: `Add Money is temporarily unavailable because the relayer distribution account has insufficient ${config.assetCode}.`,
+        code: 'DISTRIBUTION_LOW_ASSET',
+        distributionBalance: distributionBalances.asset,
+        requiredAmount: amount,
+      });
+    }
+
+    const distributionAccount = await server.loadAccount(distributionKeypair.publicKey());
+    const tx = new StellarSdk.TransactionBuilder(distributionAccount, {
+      fee: config.baseFee,
+      networkPassphrase: config.passphrase,
+    })
+      .addOperation(StellarSdk.Operation.payment({
+        destination: accountId,
+        asset: usdcAsset,
+        amount,
+      }))
+      .addMemo(StellarSdk.Memo.text('add-money'))
+      .setTimeout(config.transactionTimeoutSeconds)
+      .build();
+
+    tx.sign(distributionKeypair);
+
+    const result = await server.submitTransaction(tx);
+    const response = {
+      hash: result.hash,
+      ledger: result.ledger,
+      status: 'success',
       amount,
-    }))
-    .addMemo(StellarSdk.Memo.text('add-money'))
-    .setTimeout(config.transactionTimeoutSeconds)
-    .build();
+      assetCode: config.assetCode,
+    };
 
-  tx.sign(distributionKeypair);
+    const nextAvailableAt = new Date(Date.now() + config.addMoneyCooldownMs).toISOString();
+    await recordAddMoneyClaim({
+      walletAddress: accountId,
+      authUserId,
+      amount,
+      txHash: result.hash,
+      idempotencyKey,
+      nextAvailableAt,
+    });
 
-  const result = await server.submitTransaction(tx);
-  const response = {
-    hash: result.hash,
-    ledger: result.ledger,
-    status: 'success',
-    amount,
-    assetCode: config.assetCode,
-  };
+    if (idempotencyKey) {
+      await setIdempotencyResponse(idempotencyKey, response, config.idempotencyTtlMs);
+    }
 
-  const nextAvailableAt = new Date(Date.now() + config.addMoneyCooldownMs).toISOString();
-  addMoneyCooldowns.set(accountId, Date.parse(nextAvailableAt));
-  await recordAddMoneyClaim({
-    walletAddress: accountId,
-    amount,
-    txHash: result.hash,
-    idempotencyKey,
-    nextAvailableAt,
-  });
-
-  if (idempotencyKey) {
-    await setIdempotencyResponse(idempotencyKey, response, config.idempotencyTtlMs);
+    return res.json(response);
+  } finally {
+    await releaseAddMoneyUserLock(userLockKey);
   }
-
-  res.json(response);
 });
 
 app.get('/tx/:hash', async (req, res) => {
@@ -586,12 +503,20 @@ const relayerHttpServer = app.listen(PORT, '0.0.0.0', () => {
 });
 relayerHttpServer.ref();
 
+// Start ledger ingest worker on startup (non-blocking)
+if (config.ledgerIngestEnabled && ingestWorker.isConfigured) {
+  ingestWorker.start('stream').catch(err => {
+    console.warn('Ingest worker startup warning:', err.message);
+  });
+}
+
 // Clean up expired persisted state on startup (non-blocking)
 cleanExpiredPersistedState().catch(err => {
   console.error('Startup cleanup of persisted state failed:', err.message);
 });
+setInterval(() => cleanExpiredPersistedState().catch(() => {}), 60 * 60 * 1000).unref();
 
-module.exports = { app, server: relayerHttpServer };
+module.exports = { app, server: relayerHttpServer, ingestWorker };
 
 function loadConfig() {
   const networkName = (process.env.STELLAR_NETWORK || 'testnet').toLowerCase();
@@ -600,50 +525,24 @@ function loadConfig() {
   const passphrase = process.env.STELLAR_NETWORK_PASSPHRASE || network.passphrase;
   const sponsorSecret = requireEnv('SPONSOR_SECRET');
   const distributionSecret = requireEnv('DISTRIBUTION_SECRET');
-  const assetCode = process.env.CPINR_ASSET_CODE || 'CPINR';
-  const assetIssuer = requireEnv('CPINR_ASSET_ISSUER');
+  const assetCode = 'USDC';
+  const expectedUsdcIssuer = networkName === 'public' ? USDC_ISSUERS.public : USDC_ISSUERS.testnet;
+  const assetIssuer = process.env.USDC_ASSET_ISSUER || expectedUsdcIssuer;
   const authRequired = readBooleanEnv('RELAYER_AUTH_REQUIRED', networkName === 'public');
-  const addMoneyEnabled = readBooleanEnv('ENABLE_ADD_MONEY', networkName !== 'public');
+  // The legacy faucet is testnet-only and opt-in. It can never run on public network.
+  const addMoneyEnabled = networkName === 'testnet' && readBooleanEnv('ENABLE_TESTNET_FAUCET', false);
   const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET || '';
   const supabaseUrl = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  const sorobanRpcUrl = process.env.SOROBAN_RPC_URL || (networkName === 'testnet' ? 'https://soroban-testnet.stellar.org' : '');
-  const cpayContractId = process.env.CPAY_CONTRACT_ID || '';
-  const tokenContractId = process.env.TOKEN_CONTRACT_ID || '';
-  const relayerSecret = process.env.RELAYER_SECRET || '';
-  const contractAdminSecret = process.env.CONTRACT_ADMIN_SECRET || '';
-  const contractFlowEnabled = readBooleanEnv(
-    'CONTRACT_FLOW_ENABLED',
-    Boolean(sorobanRpcUrl && cpayContractId && relayerSecret)
-  );
 
   assertTrustedHorizonUrl(horizonUrl);
-  if (sorobanRpcUrl) {
-    assertTrustedSorobanUrl(sorobanRpcUrl);
+
+  if (assetIssuer !== expectedUsdcIssuer) {
+    throw new Error(`USDC_ASSET_ISSUER must be Circle's canonical ${networkName} issuer`);
   }
 
   if (authRequired && !supabaseJwtSecret && (!supabaseUrl || !supabaseServiceRoleKey)) {
     throw new Error('SUPABASE_JWT_SECRET or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY is required when relayer authentication is enabled');
-  }
-
-  if (cpayContractId && !StellarSdk.StrKey.isValidContract(cpayContractId)) {
-    throw new Error('CPAY_CONTRACT_ID must be a valid contract address');
-  }
-
-  if (tokenContractId && !StellarSdk.StrKey.isValidContract(tokenContractId)) {
-    throw new Error('TOKEN_CONTRACT_ID must be a valid contract address');
-  }
-
-  if (relayerSecret && !StellarSdk.StrKey.isValidEd25519SecretSeed(relayerSecret)) {
-    throw new Error('RELAYER_SECRET must be a valid Stellar secret seed');
-  }
-
-  if (contractAdminSecret && !StellarSdk.StrKey.isValidEd25519SecretSeed(contractAdminSecret)) {
-    throw new Error('CONTRACT_ADMIN_SECRET must be a valid Stellar secret seed');
-  }
-
-  if (contractFlowEnabled && (!sorobanRpcUrl || !cpayContractId || !relayerSecret)) {
-    throw new Error('SOROBAN_RPC_URL, CPAY_CONTRACT_ID, and RELAYER_SECRET are required when CONTRACT_FLOW_ENABLED=true');
   }
 
   return {
@@ -659,28 +558,28 @@ function loadConfig() {
     transactionTimeoutSeconds: Number(process.env.TRANSACTION_TIMEOUT_SECONDS || 60),
     startingBalance: process.env.STARTING_BALANCE || '1.5',
     trustlineLimit: process.env.TRUSTLINE_LIMIT || '1000000000',
+    maxSponsoredAccountsPerUser: Number(process.env.MAX_SPONSORED_ACCOUNTS_PER_USER || 5),
     addMoneyAmount: process.env.ADD_MONEY_AMOUNT || '100',
     maxAddMoneyAmount: Number(process.env.MAX_ADD_MONEY_AMOUNT || 1000),
+    maxAddMoneyDailyCap: Number(process.env.MAX_ADD_MONEY_DAILY_CAP || process.env.ADD_MONEY_DAILY_CAP || 1000),
     maxPaymentAmount: Number(process.env.MAX_PAYMENT_AMOUNT || 100000),
     addMoneyCooldownMs: Number(process.env.ADD_MONEY_COOLDOWN_MS || 24 * 60 * 60 * 1000),
     idempotencyTtlMs: Number(process.env.IDEMPOTENCY_TTL_MS || 10 * 60 * 1000),
     lowXlmThreshold: Number(process.env.LOW_XLM_THRESHOLD || 5),
-    lowAssetThreshold: Number(process.env.LOW_CPINR_THRESHOLD || 1000),
+    lowAssetThreshold: Number(process.env.LOW_USDC_THRESHOLD || 100),
     authRequired,
     supabaseJwtSecret,
     supabaseUrl,
     supabaseServiceRoleKey,
     addMoneyEnabled,
-    sorobanRpcUrl,
-    cpayContractId,
-    tokenContractId,
-    relayerSecret,
-    contractAdminSecret,
-    contractFlowEnabled,
-    contractIntentTtlSeconds: Number(process.env.CONTRACT_INTENT_TTL_SECONDS || 600),
     // QR signing – optional but recommended for production
     qrSigningSecret: process.env.QR_SIGNING_SECRET || '',
     qrDefaultTtlSeconds: Number(process.env.QR_DEFAULT_TTL_SECONDS || 86400),
+    // Ledger Ingest worker
+    ledgerIngestEnabled: readBooleanEnv('LEDGER_INGEST_ENABLED', true),
+    ingestPollIntervalMs: Number(process.env.INGEST_POLL_INTERVAL_MS || 5000),
+    ingestPendingTimeoutMs: Number(process.env.INGEST_PENDING_TIMEOUT_MS || 300000),
+    ingestStartCursor: process.env.INGEST_START_CURSOR || null,
   };
 }
 
@@ -787,8 +686,9 @@ async function resolveUserWallets(authUid) {
     const query = new URLSearchParams({
       select: 'wallet_address',
       auth_user_id: `eq.${authUid}`,
+      is_active: 'eq.true',
     });
-    const rows = await supabaseRestRequest(`users?${query.toString()}`, {
+    const rows = await supabaseRestRequest(`wallet_bindings?${query.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
@@ -799,6 +699,73 @@ async function resolveUserWallets(authUid) {
   } catch (error) {
     console.warn('Wallet ownership lookup failed:', error.message);
     return null;
+  }
+}
+
+/**
+ * Resolve the auth user ID that owns a given wallet address.
+ * Returns null if unbound or persistence is not configured.
+ */
+async function resolveWalletOwner(walletAddress) {
+  if (!isSupabasePersistenceEnabled()) {
+    return null;
+  }
+
+  try {
+    const query = new URLSearchParams({
+      select: 'auth_user_id',
+      wallet_address: `eq.${walletAddress}`,
+      is_active: 'eq.true',
+      limit: '1',
+    });
+    const rows = await supabaseRestRequest(`wallet_bindings?${query.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (Array.isArray(rows) && rows.length > 0 && rows[0]?.auth_user_id) {
+      return rows[0].auth_user_id;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Wallet owner lookup failed:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Bind a wallet address to an auth user in the database.
+ */
+async function bindWalletToUser(authUserId, walletAddress) {
+  if (!isSupabasePersistenceEnabled()) {
+    return;
+  }
+
+  await supabaseRestRequest('wallet_bindings', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      auth_user_id: authUserId,
+      wallet_address: walletAddress,
+      is_active: true,
+    }),
+  });
+}
+
+/**
+ * Check sponsor account XLM balance and trigger alarm if below threshold.
+ */
+async function checkSponsorBalanceAlarm() {
+  try {
+    const balances = await getBalances(sponsorKeypair.publicKey());
+    const sponsorXlm = Number(balances.xlm || '0');
+    if (sponsorXlm < config.lowXlmThreshold) {
+      console.warn(`[SPONSOR_DRAIN_ALARM] Sponsor account XLM balance is low: ${sponsorXlm} XLM (threshold: ${config.lowXlmThreshold})`);
+      if (typeof sendLowBalanceAlert === 'function') {
+        sendLowBalanceAlert({ sponsorXlm, distributionAsset: null, lowXlm: true, lowAsset: false }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to check sponsor balance alarm:', err.message);
   }
 }
 
@@ -825,11 +792,6 @@ function requireWalletOwnership(walletField) {
       });
     }
 
-    const requestedWallet = req.body && req.body[walletField];
-    if (!requestedWallet) {
-      return next();
-    }
-
     const ownedWallets = await resolveUserWallets(authUid);
 
     // When Supabase persistence is not configured, skip the ownership check.
@@ -837,69 +799,53 @@ function requireWalletOwnership(walletField) {
       return next();
     }
 
-    if (!ownedWallets.includes(requestedWallet)) {
+    if (!ownedWallets || ownedWallets.length === 0) {
+      // If we are preparing an account, it might not be bound yet.
+      // But we already added the binding to /accounts/prepare.
       return res.status(403).json({
-        error: 'You are not authorized to perform actions for this wallet',
-        code: 'WALLET_OWNERSHIP_DENIED',
+        error: 'No wallets bound to this user',
+        code: 'NO_WALLETS_BOUND',
       });
+    }
+
+    if (walletField) {
+      const requestedWallet = req.body && req.body[walletField];
+      if (requestedWallet) {
+        if (!ownedWallets.includes(requestedWallet)) {
+          return res.status(403).json({
+            error: 'You are not authorized to perform actions for this wallet',
+            code: 'WALLET_OWNERSHIP_DENIED',
+          });
+        }
+      } else {
+        // Resolve wallet from binding rather than trusting body
+        req.body[walletField] = ownedWallets[0];
+      }
+    } else {
+      req.resolvedWallets = ownedWallets;
     }
 
     return next();
   };
 }
 
-/**
- * Build a middleware that verifies the requesting user owns the merchant
- * identified by `merchantWalletField` in req.body, by checking the merchants
- * table for a row matching both auth_user_id and wallet_address.
- *
- * @param {string} merchantWalletField - The req.body key that holds the merchant wallet address.
- */
-function requireMerchantOwnership(merchantWalletField) {
+/** Verify that an authenticated user owns the wallet in a route parameter. */
+function requirePathWalletOwnership() {
   return async function (req, res, next) {
-    if (!config.authRequired) {
-      return next();
-    }
-
+    if (!config.authRequired) return next();
     const authUid = req.auth && req.auth.sub;
     if (!authUid) {
-      return res.status(401).json({
-        error: 'Authentication required',
-        code: 'AUTH_REQUIRED',
+      return res.status(401).json({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
+    }
+    const ownedWallets = await resolveUserWallets(authUid);
+    if (ownedWallets === null) return next();
+    const requestedWallet = req.params.accountId;
+    if (!ownedWallets.includes(requestedWallet)) {
+      return res.status(403).json({
+        error: 'You are not authorized to view this wallet',
+        code: 'WALLET_OWNERSHIP_DENIED',
       });
     }
-
-    const requestedWallet = req.body && req.body[merchantWalletField];
-    if (!requestedWallet) {
-      return next();
-    }
-
-    if (!isSupabasePersistenceEnabled()) {
-      return next();
-    }
-
-    try {
-      const query = new URLSearchParams({
-        select: 'wallet_address',
-        auth_user_id: `eq.${authUid}`,
-        wallet_address: `eq.${requestedWallet}`,
-        limit: '1',
-      });
-      const rows = await supabaseRestRequest(`merchants?${query.toString()}`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return res.status(403).json({
-          error: 'You are not authorized to register a merchant for this wallet',
-          code: 'MERCHANT_OWNERSHIP_DENIED',
-        });
-      }
-    } catch (error) {
-      console.warn('Merchant ownership lookup failed, skipping check:', error.message);
-    }
-
     return next();
   };
 }
@@ -992,20 +938,6 @@ function assertTrustedHorizonUrl(horizonUrl) {
   }
 }
 
-function assertTrustedSorobanUrl(rpcUrl) {
-  const parsed = new URL(rpcUrl);
-  const allowCustom = process.env.ALLOW_CUSTOM_SOROBAN_RPC === 'true';
-  const allowedHosts = new Set(['soroban-testnet.stellar.org', 'mainnet.sorobanrpc.com']);
-
-  if (parsed.protocol !== 'https:' && process.env.ALLOW_HTTP_SOROBAN_RPC !== 'true') {
-    throw new Error('Soroban RPC URL must use HTTPS unless ALLOW_HTTP_SOROBAN_RPC=true');
-  }
-
-  if (!allowCustom && parsed.protocol === 'https:' && !allowedHosts.has(parsed.hostname)) {
-    throw new Error('Custom Soroban RPC hosts require ALLOW_CUSTOM_SOROBAN_RPC=true');
-  }
-}
-
 function assertAccountId(value, label) {
   if (!StellarSdk.StrKey.isValidEd25519PublicKey(value || '')) {
     const error = new Error(`Invalid Stellar ${label}`);
@@ -1090,457 +1022,6 @@ function normalizeAmount(value, maxAmount) {
   return amount;
 }
 
-function normalizeMerchantId(value) {
-  const merchantId = normalizeOptionalString(value);
-  if (!merchantId || merchantId.length > 128) {
-    const error = new Error('Invalid merchant ID');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return merchantId;
-}
-
-function normalizeIntentId(value) {
-  const intentId = normalizeOptionalString(value).toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(intentId)) {
-    const error = new Error('Invalid payment intent ID');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return intentId;
-}
-
-function normalizeOptionalIntentId(value) {
-  return normalizeOptionalString(value) ? normalizeIntentId(value) : '';
-}
-
-function amountToContractUnits(amount) {
-  const [whole, fraction = ''] = amount.split('.');
-  const fractionPadded = fraction.padEnd(7, '0');
-  return BigInt(whole) * 10_000_000n + BigInt(fractionPadded);
-}
-
-function merchantIdToContractKeyHex(merchantId) {
-  return crypto.createHash('sha256').update(`cpay:merchant:${merchantId}`).digest('hex');
-}
-
-function bytes32ScVal(hex) {
-  if (!/^[a-fA-F0-9]{64}$/.test(hex || '')) {
-    const error = new Error('Expected a 32-byte hex value');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return StellarSdk.nativeToScVal(Buffer.from(hex, 'hex'), { type: 'bytes' });
-}
-
-function accountAddressScVal(accountId) {
-  return new StellarSdk.Address(accountId).toScVal();
-}
-
-function i128ScVal(value) {
-  return StellarSdk.nativeToScVal(BigInt(value), { type: 'i128' });
-}
-
-function u64ScVal(value) {
-  return StellarSdk.nativeToScVal(BigInt(value), { type: 'u64' });
-}
-
-function assertContractFlowEnabled() {
-  if (!config.contractFlowEnabled || !sorobanServer || !cpayContract) {
-    const error = new Error('C-Pay contract flow is not configured on this relayer');
-    error.statusCode = 503;
-    error.code = 'CONTRACT_FLOW_DISABLED';
-    throw error;
-  }
-}
-
-function assertContractAdminConfigured() {
-  if (!contractAdminKeypair) {
-    const error = new Error('Contract admin key is not configured on this relayer');
-    error.statusCode = 503;
-    error.code = 'CONTRACT_ADMIN_NOT_CONFIGURED';
-    throw error;
-  }
-}
-
-function assertSupabasePersistenceConfigured(endpoint) {
-  if (!isSupabasePersistenceEnabled()) {
-    const error = new Error(
-      `${endpoint} requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to be configured on the relayer`
-    );
-    error.statusCode = 503;
-    error.code = 'SUPABASE_NOT_CONFIGURED';
-    throw error;
-  }
-}
-
-function assertNonEmptyString(value, label) {
-  if (typeof value !== 'string' || !value.trim()) {
-    const error = new Error(`${label} is required and must be a non-empty string`);
-    error.statusCode = 400;
-    throw error;
-  }
-  return value.trim();
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/**
- * Fetch a merchant row only when the given authUserId is the owner.
- * Returns null when the merchant is not found or the user does not own it.
- */
-async function fetchMerchantForOwner(merchantId, authUserId) {
-  try {
-    const rows = await supabaseRestRequest(
-      `merchants?id=eq.${encodeURIComponent(merchantId)}&auth_user_id=eq.${encodeURIComponent(authUserId)}&select=id,auth_user_id,verification_status`,
-      { method: 'GET', headers: { 'Accept': 'application/json', Prefer: 'return=representation' } }
-    );
-    return Array.isArray(rows) ? rows[0] || null : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Upsert a merchant_contact_verifications row after an OTP send request.
- */
-async function upsertMerchantContactVerification({ authUserId, merchantId, contactEmail }) {
-  try {
-    await supabaseRestRequest(
-      'merchant_contact_verifications',
-      {
-        method: 'POST',
-        headers: {
-          Prefer: 'resolution=merge-duplicates,return=minimal',
-          'on-conflict': 'auth_user_id,merchant_id',
-        },
-        body: JSON.stringify({
-          auth_user_id: authUserId,
-          merchant_id: merchantId,
-          contact_email: contactEmail,
-          otp_sent_at: new Date().toISOString(),
-          is_verified: false,
-          verified_at: null,
-        }),
-      }
-    );
-  } catch (err) {
-    // Non-fatal — audit record failure should not block the OTP send response.
-    console.warn('Failed to upsert merchant_contact_verifications:', err.message);
-  }
-}
-
-/**
- * Mark contact email as verified on the merchants row and the
- * merchant_contact_verifications audit row.
- */
-async function updateMerchantContactVerified({ merchantId, contactEmail, authUserId, newVerificationStatus }) {
-  const now = new Date().toISOString();
-
-  const merchantPatch = {
-    contact_email_verified: true,
-    verified_contact_email: contactEmail,
-    updated_at: now,
-  };
-  if (newVerificationStatus) {
-    merchantPatch.verification_status = newVerificationStatus;
-    merchantPatch.submitted_at = now;
-  }
-
-  await supabaseRestRequest(
-    `merchants?id=eq.${encodeURIComponent(merchantId)}&auth_user_id=eq.${encodeURIComponent(authUserId)}`,
-    {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify(merchantPatch),
-    }
-  );
-
-  // Update audit row
-  try {
-    await supabaseRestRequest(
-      `merchant_contact_verifications?merchant_id=eq.${encodeURIComponent(merchantId)}&auth_user_id=eq.${encodeURIComponent(authUserId)}`,
-      {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({
-          is_verified: true,
-          verified_at: now,
-          updated_at: now,
-        }),
-      }
-    );
-  } catch (err) {
-    console.warn('Failed to update merchant_contact_verifications after OTP verify:', err.message);
-  }
-}
-
-async function prepareContractInvocation({ sourceAccountId, method, args }) {
-  assertContractFlowEnabled();
-
-  const sourceAccount = await sorobanServer.getAccount(sourceAccountId);
-  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: config.baseFee,
-    networkPassphrase: config.passphrase,
-  })
-    .addOperation(cpayContract.call(method, ...args))
-    .setTimeout(config.transactionTimeoutSeconds)
-    .build();
-
-  const prepared = await sorobanServer.prepareTransaction(transaction);
-  return prepared.toXDR();
-}
-
-async function readContract(method, args = []) {
-  assertContractFlowEnabled();
-
-  const sourceAccountId =
-    relayerContractKeypair?.publicKey() ||
-    contractAdminKeypair?.publicKey() ||
-    sponsorKeypair.publicKey();
-  const sourceAccount = await sorobanServer.getAccount(sourceAccountId);
-  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: config.baseFee,
-    networkPassphrase: config.passphrase,
-  })
-    .addOperation(cpayContract.call(method, ...args))
-    .setTimeout(config.transactionTimeoutSeconds)
-    .build();
-
-  const simulation = await sorobanServer.simulateTransaction(transaction);
-  if (StellarSdk.rpc.Api.isSimulationError(simulation)) {
-    const error = new Error(simulation.error || 'Contract read failed');
-    error.statusCode = 502;
-    throw error;
-  }
-
-  return StellarSdk.scValToNative(simulation.result.retval);
-}
-
-async function readContractConfig() {
-  return readContract('config');
-}
-
-async function readContractMerchantByKey(merchantKeyHex) {
-  try {
-    return await readContract('merchant', [bytes32ScVal(merchantKeyHex)]);
-  } catch (error) {
-    if (isMissingContractRecordError(error)) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-async function readContractIntent(intentId) {
-  try {
-    return await readContract('intent', [bytes32ScVal(intentId)]);
-  } catch (error) {
-    if (isMissingContractRecordError(error)) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-function isMissingContractRecordError(error) {
-  return /#6|#9|MerchantMissing|IntentMissing|missing/i.test(error.message || '');
-}
-
-async function invokeContractWithSigner(keypair, method, args) {
-  assertContractFlowEnabled();
-
-  const sourceAccount = await sorobanServer.getAccount(keypair.publicKey());
-  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: config.baseFee,
-    networkPassphrase: config.passphrase,
-  })
-    .addOperation(cpayContract.call(method, ...args))
-    .setTimeout(config.transactionTimeoutSeconds)
-    .build();
-
-  const prepared = await sorobanServer.prepareTransaction(transaction);
-  prepared.sign(keypair);
-
-  return submitSignedSorobanTransaction(prepared);
-}
-
-async function submitSignedSorobanTransaction(transaction) {
-  assertContractFlowEnabled();
-
-  const sendResponse = await sorobanServer.sendTransaction(transaction);
-  if (sendResponse.status === 'ERROR') {
-    const error = new Error('Soroban transaction submission failed');
-    error.statusCode = 502;
-    error.details = sendResponse;
-    throw error;
-  }
-
-  return waitForSorobanTransaction(sendResponse.hash);
-}
-
-async function waitForSorobanTransaction(hash) {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const response = await sorobanServer.getTransaction(hash);
-
-    if (response.status === StellarSdk.rpc.Api.GetTransactionStatus.SUCCESS) {
-      return {
-        hash,
-        status: 'success',
-        ledger: response.ledger,
-        returnValue: response.returnValue
-          ? StellarSdk.scValToNative(response.returnValue)
-          : undefined,
-      };
-    }
-
-    if (response.status === StellarSdk.rpc.Api.GetTransactionStatus.FAILED) {
-      const error = new Error('Soroban transaction failed');
-      error.statusCode = 502;
-      error.details = response;
-      throw error;
-    }
-
-    await delay(1000);
-  }
-
-  const error = new Error('Soroban transaction is still pending');
-  error.statusCode = 504;
-  throw error;
-}
-
-async function registerMerchantOnContract(merchantId, walletAddress) {
-  const merchantKey = merchantIdToContractKeyHex(merchantId);
-  const existing = await readContractMerchantByKey(merchantKey);
-
-  if (!existing) {
-    const result = await invokeContractWithSigner(contractAdminKeypair, 'register_merchant', [
-      bytes32ScVal(merchantKey),
-      accountAddressScVal(walletAddress),
-    ]);
-
-    return {
-      contractStatus: 'registered',
-      contractMerchantKey: merchantKey,
-      contractTxHash: result.hash,
-      contractLedger: result.ledger,
-    };
-  }
-
-  if (existing.account !== walletAddress) {
-    const result = await invokeContractWithSigner(contractAdminKeypair, 'set_merchant_account', [
-      bytes32ScVal(merchantKey),
-      accountAddressScVal(walletAddress),
-    ]);
-
-    return {
-      contractStatus: 'account_rotated',
-      contractMerchantKey: merchantKey,
-      contractTxHash: result.hash,
-      contractLedger: result.ledger,
-    };
-  }
-
-  if (!existing.active) {
-    const result = await invokeContractWithSigner(contractAdminKeypair, 'set_merchant_active', [
-      bytes32ScVal(merchantKey),
-      StellarSdk.nativeToScVal(true),
-    ]);
-
-    return {
-      contractStatus: 'reactivated',
-      contractMerchantKey: merchantKey,
-      contractTxHash: result.hash,
-      contractLedger: result.ledger,
-    };
-  }
-
-  return {
-    contractStatus: 'already_registered',
-    contractMerchantKey: merchantKey,
-  };
-}
-
-async function verifyPaymentMatchesContractIntent(intentId, payment) {
-  const cachedIntent = await getCachedContractIntent(intentId);
-  const contractIntent = cachedIntent?.status === 'created'
-    ? cachedIntent
-    : await readContractIntent(intentId);
-
-  if (!contractIntent) {
-    const error = new Error('Payment intent was not found on the contract');
-    error.statusCode = 409;
-    error.code = 'CONTRACT_INTENT_MISSING';
-    throw error;
-  }
-
-  const expectedPayer = contractIntent.payer;
-  const expectedMerchant = contractIntent.merchant || contractIntent.merchantAddress;
-  const expectedAmountUnits = String(contractIntent.amount ?? contractIntent.amountUnits);
-  const paymentAmountUnits = amountToContractUnits(payment.amount).toString();
-
-  if (expectedPayer && expectedPayer !== payment.source) {
-    const error = new Error('Payment source does not match the contract intent payer');
-    error.statusCode = 409;
-    error.code = 'CONTRACT_INTENT_PAYER_MISMATCH';
-    throw error;
-  }
-
-  if (expectedMerchant && expectedMerchant !== payment.destination) {
-    const error = new Error('Payment destination does not match the contract intent merchant');
-    error.statusCode = 409;
-    error.code = 'CONTRACT_INTENT_MERCHANT_MISMATCH';
-    throw error;
-  }
-
-  if (expectedAmountUnits !== paymentAmountUnits) {
-    const error = new Error('Payment amount does not match the contract intent amount');
-    error.statusCode = 409;
-    error.code = 'CONTRACT_INTENT_AMOUNT_MISMATCH';
-    throw error;
-  }
-}
-
-async function confirmContractIntent(intentId, paymentHash) {
-  if (!relayerContractKeypair) {
-    const error = new Error('Contract relayer key is not configured');
-    error.statusCode = 503;
-    throw error;
-  }
-
-  const result = await invokeContractWithSigner(relayerContractKeypair, 'confirm_intent', [
-    bytes32ScVal(intentId),
-    bytes32ScVal(paymentHash),
-  ]);
-
-  const cachedIntent = await getCachedContractIntent(intentId);
-  if (cachedIntent) {
-    await cacheContractIntent(intentId, {
-      ...cachedIntent,
-      status: 'confirmed',
-      paymentHash,
-      confirmTxHash: result.hash,
-      confirmLedger: result.ledger,
-    });
-  }
-
-  return {
-    status: 'confirmed',
-    hash: result.hash,
-    ledger: result.ledger,
-    contractId: config.cpayContractId,
-  };
-}
-
-async function cacheContractIntent(intentId, value) {
-  await setCachedContractIntent(intentId, value, config.contractIntentTtlSeconds);
-}
-
 async function getBalances(accountId) {
   try {
     const account = await server.loadAccount(accountId);
@@ -1585,28 +1066,79 @@ async function getAccountStatus(accountId) {
   }
 }
 
-async function getAddMoneyRetryAfterSeconds(accountId) {
-  const cooldownUntil = addMoneyCooldowns.get(accountId) || 0;
-  const remainingMs = cooldownUntil - Date.now();
-  const inMemoryRetryAfter = remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
-  const persistedRetryAfter = await getPersistedAddMoneyRetryAfterSeconds(accountId);
-  return Math.max(inMemoryRetryAfter, persistedRetryAfter);
+const activeAddMoneyUserLocks = new Map();
+
+async function acquireAddMoneyUserLock(userLockKey, ttlMs) {
+  const now = Date.now();
+  const existingExpiry = activeAddMoneyUserLocks.get(userLockKey);
+  if (existingExpiry && existingExpiry > now) {
+    return { acquired: false };
+  }
+  activeAddMoneyUserLocks.set(userLockKey, now + ttlMs);
+
+  if (isSupabasePersistenceEnabled()) {
+    try {
+      await supabaseRestRequest('relayer_idempotency_keys', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          key: userLockKey,
+          response: null,
+          expires_at: new Date(now + ttlMs).toISOString(),
+        }),
+      });
+    } catch (error) {
+      if (error?.message?.includes('409') || error?.status === 409 || error?.response?.status === 409) {
+        activeAddMoneyUserLocks.delete(userLockKey);
+        return { acquired: false };
+      }
+    }
+  }
+
+  return { acquired: true };
 }
 
-async function getPersistedAddMoneyRetryAfterSeconds(accountId) {
+async function releaseAddMoneyUserLock(userLockKey) {
+  activeAddMoneyUserLocks.delete(userLockKey);
+  if (isSupabasePersistenceEnabled()) {
+    try {
+      const query = new URLSearchParams({ key: `eq.${userLockKey}` });
+      await supabaseRestRequest(`relayer_idempotency_keys?${query.toString()}`, {
+        method: 'DELETE',
+        headers: { Prefer: 'return=minimal' },
+      });
+    } catch {
+      // Best-effort cleanup
+    }
+  }
+}
+
+async function getAddMoneyRetryAfterSeconds(accountId, authUserId) {
+  const persistedRetryAfter = await getPersistedAddMoneyRetryAfterSeconds(accountId, authUserId);
+  return persistedRetryAfter;
+}
+
+async function getPersistedAddMoneyRetryAfterSeconds(accountId, authUserId) {
   if (!isSupabasePersistenceEnabled()) {
     return 0;
   }
 
   try {
+    let filter;
+    if (authUserId) {
+      filter = `or=(auth_user_id.eq.${encodeURIComponent(authUserId)},wallet_address.eq.${encodeURIComponent(accountId)})`;
+    } else {
+      filter = `wallet_address=eq.${encodeURIComponent(accountId)}`;
+    }
+
     const query = new URLSearchParams({
       select: 'next_available_at',
-      wallet_address: `eq.${accountId}`,
       next_available_at: `gt.${new Date().toISOString()}`,
       order: 'next_available_at.desc',
       limit: '1',
     });
-    const rows = await supabaseRestRequest(`add_money_claims?${query.toString()}`, {
+
+    const rows = await supabaseRestRequest(`add_money_claims?${filter}&${query.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
@@ -1623,8 +1155,61 @@ async function getPersistedAddMoneyRetryAfterSeconds(accountId) {
   }
 }
 
+async function checkAddMoneyDailyCap(accountId, authUserId, requestedAmount) {
+  if (!isSupabasePersistenceEnabled() || !config.maxAddMoneyDailyCap) {
+    return { allowed: true, totalClaimed: 0, retryAfterSeconds: 0 };
+  }
+
+  try {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    let filter;
+    if (authUserId) {
+      filter = `or=(auth_user_id.eq.${encodeURIComponent(authUserId)},wallet_address.eq.${encodeURIComponent(accountId)})`;
+    } else {
+      filter = `wallet_address=eq.${encodeURIComponent(accountId)}`;
+    }
+
+    const query = new URLSearchParams({
+      select: 'amount,claimed_at',
+      claimed_at: `gte.${oneDayAgo}`,
+      order: 'claimed_at.asc',
+    });
+
+    const rows = await supabaseRestRequest(`add_money_claims?${filter}&${query.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { allowed: true, totalClaimed: 0, retryAfterSeconds: 0 };
+    }
+
+    const totalClaimed = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const numRequested = Number(requestedAmount || 0);
+
+    if (totalClaimed + numRequested > config.maxAddMoneyDailyCap) {
+      const oldestClaimTime = new Date(rows[0].claimed_at).getTime();
+      const resetTime = oldestClaimTime + 24 * 60 * 60 * 1000;
+      const remainingMs = resetTime - Date.now();
+      const retryAfterSeconds = remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 3600;
+
+      return {
+        allowed: false,
+        totalClaimed,
+        retryAfterSeconds,
+      };
+    }
+
+    return { allowed: true, totalClaimed, retryAfterSeconds: 0 };
+  } catch (error) {
+    console.warn('Add Money daily cap check skipped:', error.message);
+    return { allowed: true, totalClaimed: 0, retryAfterSeconds: 0 };
+  }
+}
+
 async function recordAddMoneyClaim({
   walletAddress,
+  authUserId,
   amount,
   txHash,
   idempotencyKey,
@@ -1638,6 +1223,7 @@ async function recordAddMoneyClaim({
     const conflictColumn = idempotencyKey ? 'idempotency_key' : 'tx_hash';
     const row = {
       wallet_address: walletAddress,
+      auth_user_id: authUserId || null,
       amount,
       asset_code: config.assetCode,
       asset_issuer: config.assetIssuer,
@@ -1664,108 +1250,59 @@ function isSupabasePersistenceEnabled() {
 
 // ── Persisted idempotency ──────────────────────────────────────────────
 
-async function getIdempotencyResponse(key) {
-  if (idempotencyCache.has(key)) return idempotencyCache.get(key);
-  if (!isSupabasePersistenceEnabled()) return null;
-  try {
-    const query = new URLSearchParams({
-      select: 'response',
-      key: `eq.${key}`,
-      expires_at: `gt.${new Date().toISOString()}`,
-      limit: '1',
-    });
-    const rows = await supabaseRestRequest(`relayer_idempotency_keys?${query.toString()}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    });
-    if (Array.isArray(rows) && rows.length > 0) {
-      idempotencyCache.set(key, rows[0].response);
-      setTimeout(() => idempotencyCache.delete(key), config.idempotencyTtlMs).unref();
-      return rows[0].response;
-    }
-  } catch (error) {
-    console.warn('Idempotency lookup failed:', error.message);
+async function acquireIdempotencyLock(key, ttlMs) {
+  if (!isSupabasePersistenceEnabled()) {
+    return { acquired: true };
   }
-  return null;
-}
-
-async function setIdempotencyResponse(key, response, ttlMs) {
-  idempotencyCache.set(key, response);
-  setTimeout(() => idempotencyCache.delete(key), ttlMs).unref();
-  if (!isSupabasePersistenceEnabled()) return;
   try {
     await supabaseRestRequest('relayer_idempotency_keys', {
       method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: { Prefer: 'return=minimal' },
       body: JSON.stringify({
         key,
-        response,
+        response: null,
         expires_at: new Date(Date.now() + ttlMs).toISOString(),
       }),
     });
+    return { acquired: true };
   } catch (error) {
-    console.warn('Idempotency persistence failed:', error.message);
-  }
-}
-
-// ── Persisted contract intent cache ────────────────────────────────────
-
-async function getCachedContractIntent(intentId) {
-  if (contractIntentCache.has(intentId)) return contractIntentCache.get(intentId);
-  if (!isSupabasePersistenceEnabled()) return null;
-  try {
-    const query = new URLSearchParams({
-      select: 'data',
-      intent_id: `eq.${intentId}`,
-      expires_at: `gt.${new Date().toISOString()}`,
-      limit: '1',
-    });
-    const rows = await supabaseRestRequest(`contract_intent_cache?${query.toString()}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    });
-    if (Array.isArray(rows) && rows.length > 0) {
-      const data = rows[0].data;
-      contractIntentCache.set(intentId, data);
-      setTimeout(() => contractIntentCache.delete(intentId), config.contractIntentTtlSeconds * 1000).unref();
-      return data;
+    if (error.response && error.response.status === 409) {
+      const query = new URLSearchParams({ select: 'response', key: `eq.${key}`, limit: '1' });
+      const rows = await supabaseRestRequest(`relayer_idempotency_keys?${query.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (Array.isArray(rows) && rows.length > 0) {
+        return { acquired: false, response: rows[0].response };
+      }
     }
-  } catch (error) {
-    console.warn('Contract intent cache lookup failed:', error.message);
+    throw error;
   }
-  return null;
 }
 
-async function setCachedContractIntent(intentId, data, ttlSeconds) {
-  contractIntentCache.set(intentId, data);
-  setTimeout(() => contractIntentCache.delete(intentId), ttlSeconds * 1000).unref();
-  if (!isSupabasePersistenceEnabled()) return;
+async function setIdempotencyResponse(key, response, ttlMs) {
+  if (!isSupabasePersistenceEnabled()) {
+    return;
+  }
   try {
-    await supabaseRestRequest('contract_intent_cache', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({
-        intent_id: intentId,
-        data,
-        expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
-      }),
+    const query = new URLSearchParams({ key: `eq.${key}` });
+    await supabaseRestRequest(`relayer_idempotency_keys?${query.toString()}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ response }),
     });
   } catch (error) {
-    console.warn('Contract intent cache persistence failed:', error.message);
+    console.warn('Idempotency update failed:', error.message);
   }
 }
 
-// ── Startup cleanup of expired persisted state ──────────────────────────
+// ── Startup cleanup of expired persisted state ──────────────────────────────
 
 async function cleanExpiredPersistedState() {
   if (!isSupabasePersistenceEnabled()) return;
   try {
     const now = new Date().toISOString();
     await supabaseRestRequest(`relayer_idempotency_keys?expires_at=lte.${encodeURIComponent(now)}`, {
-      method: 'DELETE',
-      headers: { Prefer: 'return=minimal' },
-    });
-    await supabaseRestRequest(`contract_intent_cache?expires_at=lte.${encodeURIComponent(now)}`, {
       method: 'DELETE',
       headers: { Prefer: 'return=minimal' },
     });
@@ -1807,7 +1344,7 @@ function getStellarErrorMessage(resultCodes) {
   const operations = resultCodes?.operations || [];
 
   if (operations.includes('op_no_issuer')) {
-    return `The configured ${config.assetCode} issuer account does not exist on ${config.networkName}. Run the testnet asset setup before using Add Money.`;
+    return `Circle's ${config.assetCode} issuer is unavailable on ${config.networkName}. Verify the network and issuer configuration.`;
   }
 
   if (operations.includes('op_no_trust')) {
@@ -1886,7 +1423,7 @@ async function sendLowBalanceAlert({ sponsorXlm, distributionAsset, lowXlm, lowA
 
   const warnings = [
     lowXlm ? `Sponsor XLM balance is ${sponsorXlm}` : null,
-    lowAsset ? `Distribution CPINR balance is ${distributionAsset}` : null,
+    lowAsset ? `Distribution USDC balance is ${distributionAsset}` : null,
   ].filter(Boolean);
 
   await fetch(process.env.ALERT_WEBHOOK_URL, {

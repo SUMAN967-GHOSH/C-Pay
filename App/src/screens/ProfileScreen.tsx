@@ -18,9 +18,8 @@ import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { useFocusEffect } from '@react-navigation/native';
-import { isMerchant, getMerchantProfile, merchantEvents } from '../services/merchant';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { Screen, Section, ActionRow } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
@@ -33,11 +32,10 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+  useTheme();
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [cpayId, setCpayId] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
-  const [merchantStatus, setMerchantStatus] = useState<boolean>(false);
-  const [businessName, setBusinessName] = useState<string>('');
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [showQRCode, setShowQRCode] = useState<boolean>(false);
@@ -47,22 +45,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     loadWalletAddress();
     loadCPayId();
     loadDisplayName();
-    checkMerchantStatus();
     loadSettings();
     loadProfilePhoto();
 
-    const merchantListener = () => checkMerchantStatus();
-    merchantEvents.on('merchantRegistered', merchantListener);
-    return () => {
-      merchantEvents.off('merchantRegistered', merchantListener);
-    };
+    return undefined;
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
       loadCPayId();
       loadDisplayName();
-      checkMerchantStatus();
       loadProfilePhoto();
       loadSettings();
     }, [])
@@ -127,18 +119,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Error loading profile photo:', error);
-    }
-  };
-
-  const checkMerchantStatus = async () => {
-    const address = await AsyncStorage.getItem('wallet_address');
-    if (address) {
-      const isMerch = await isMerchant(address);
-      setMerchantStatus(isMerch);
-      if (isMerch) {
-        const profile = await getMerchantProfile(address);
-        if (profile) setBusinessName(profile.business_name);
-      }
     }
   };
 
@@ -339,7 +319,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Ionicons name="qr-code-outline" size={24} color={COLORS.primary} style={styles.qrCodeIcon} />
               <Text style={styles.qrCodeTitle}>My QR Code</Text>
             </View>
-            <Ionicons name={showQRCode ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.textSecondary} />
+            <Ionicons name={showQRCode ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.textMuted} />
           </View>
 
           {showQRCode && (
@@ -429,40 +409,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 value={notificationsEnabled}
                 onValueChange={handleToggleNotifications}
                 trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textSecondary}
+                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textMuted}
               />
             }
           />
         </View>
-      </Section>
-
-      {/* Merchant */}
-      <Section title="Merchant">
-        {merchantStatus ? (
-          <View style={styles.merchantCard}>
-            <View style={styles.merchantHeader}>
-              <Text style={styles.merchantBadge}>Merchant Account</Text>
-              <Text style={styles.merchantName}>{businessName}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.merchantButton}
-              onPress={() => navigation.navigate('MerchantDashboard')}
-            >
-              <Ionicons name="stats-chart-outline" size={20} color={COLORS.textInverse} style={styles.merchantButtonIcon} />
-              <Text style={styles.merchantButtonText}>Open Dashboard</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.card}>
-            <ActionRow
-              style={styles.rowFlat}
-              icon="storefront-outline"
-              title="Become a Merchant"
-              subtitle="Accept payments from customers"
-              onPress={() => navigation.navigate('MerchantRegistration')}
-            />
-          </View>
-        )}
       </Section>
 
       {/* Support */}
@@ -522,7 +473,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   profileHeader: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
@@ -570,7 +521,7 @@ const styles = StyleSheet.create({
   },
   profileAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     flex: 1,
     marginRight: SPACING.sm,
@@ -622,7 +573,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
   },
   shareableQRCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     padding: SPACING.xl,
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
@@ -648,7 +599,7 @@ const styles = StyleSheet.create({
   },
   shareCardAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   shareCardFooter: {
@@ -659,18 +610,18 @@ const styles = StyleSheet.create({
   },
   shareCardFooterText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   qrCodeWrapper: {
     padding: SPACING.lg,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
     ...SHADOWS.md,
   },
   qrCodeDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: SPACING.md,
     marginBottom: SPACING.md,
@@ -707,46 +658,6 @@ const styles = StyleSheet.create({
   shareButtonText: {
     color: COLORS.textInverse,
   },
-  merchantCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.success,
-    ...SHADOWS.md,
-  },
-  merchantHeader: {
-    marginBottom: SPACING.md,
-  },
-  merchantBadge: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.success,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  merchantName: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginTop: SPACING.xs,
-  },
-  merchantButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  merchantButtonIcon: {
-    marginRight: SPACING.sm,
-  },
-  merchantButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.textInverse,
-  },
   signOutSection: {
     marginBottom: SPACING.xl,
   },
@@ -771,7 +682,7 @@ const styles = StyleSheet.create({
   },
   signOutHint: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -784,11 +695,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginBottom: SPACING.xs,
   },
   footerSubtext: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
-});
+}));

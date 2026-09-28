@@ -5,19 +5,43 @@
  *
  * ─── Security design notes ───────────────────────────────────────────────────
  *
- * PIN verifier KDF  (PIN_KDF_ITERATIONS = 20 000)
- *   PBKDF2-SHA256 over the salted PIN, used only to verify the PIN at login.
- *   The iteration count is lower than the wallet KDF because it runs every
- *   login attempt (including during backoff checks).  All attempts after the
- *   first few are rate-limited by the lockout policy, so the effective work
- *   factor for an attacker is the lockout delay × iterations, not iterations
- *   alone.  Legacy verifiers used 120 000 iterations and are migrated
- *   transparently on successful login.
+ * Threat model for the PIN  (issue #36)
+ *   A 6-digit PIN is a 10^6 keyspace — small enough that, once an attacker has
+ *   the SecureStore blob off the device, only the KDF cost stands between them
+ *   and the seed.  The lockout policy below is worthless in that scenario: it
+ *   is enforced by this app, and an offline attacker is not running this app.
+ *   So the PIN is treated as a *convenience factor* guarding an on-device
+ *   secret, and defence is layered:
+ *     1. Lockout + wipe raise the cost of on-device guessing.
+ *     2. KDF cost raises the cost of offline guessing once extracted.
+ *     3. SecureStore keeps the blob in the platform keystore to begin with.
+ *   Even so, 10^6 × PBKDF2 remains tractable for a motivated attacker with
+ *   GPUs.  A memory-hard KDF (Argon2id) is the real fix — see the note on
+ *   WALLET_KDF_ITERATIONS below.
  *
- * Wallet encryption KDF  (WALLET_KDF_ITERATIONS = 80 000)
- *   PBKDF2-SHA256 over the salted PIN, used to derive the AES-equivalent
- *   key for wallet encryption.  Higher than the verifier because it is only
- *   called on successful unlock — the extra cost is paid once per session.
+ * PIN verifier KDF  (PIN_KDF_ITERATIONS = 210 000)
+ *   PBKDF2-SHA256 over the salted PIN, used only to verify the PIN at login.
+ *   Set to the OWASP 2023 floor for PBKDF2-SHA256.  This runs once per login
+ *   attempt; at ~200 ms on target hardware that is acceptable interactively
+ *   and multiplies an offline attacker's cost over the whole 10^6 keyspace.
+ *   Verifiers written at the old 20 000 (and the older legacy 120 000) are
+ *   migrated transparently on the next successful login — never by forcing a
+ *   re-entry, which could strand a user who has no cloud backup.
+ *
+ * Wallet encryption KDF  (WALLET_KDF_ITERATIONS = 600 000)
+ *   PBKDF2-SHA256 over the salted PIN, used to derive the key for wallet
+ *   encryption.  Higher than the verifier because it is only called on a
+ *   successful unlock — the cost is paid once per session, not per attempt.
+ *   Existing wallets are re-wrapped at the new cost on the next successful
+ *   unlock (see maybeRewrapWalletSecret), so no user is ever asked to
+ *   re-enter or re-import anything.
+ *
+ *   NOTE: PBKDF2 is not memory-hard, so GPU parallelism still favours the
+ *   attacker.  Argon2id is the intended replacement; it is not adopted here
+ *   because the pinned @noble/hashes is 1.3.2, which predates Argon2 support
+ *   (added in 1.4).  The versioned re-wrap path below is what makes that swap
+ *   a contained change: bump WALLET_KDF_VERSION and implement deriveWalletKey
+ *   for the new version, and existing wallets migrate themselves on unlock.
  *
  * Wallet cipher  (XChaCha20-Poly1305)
  *   Chosen over AES-GCM for its larger 192-bit nonce (eliminates nonce-reuse
@@ -37,6 +61,19 @@
  *   lockout-until timestamp are written to SecureStore so they survive
  *   app restarts and cannot be reset by simply force-quitting the app.
  *   A successful PIN clears the counter.
+ *
+ * Local wipe policy  (WIPE_PIN_ATTEMPTS = 15)
+ *   After 15 consecutive wrong PINs the encrypted wallet is erased from this
+ *   device.  This bounds on-device guessing at 15 tries out of 10^6 rather
+ *   than letting an attacker sit through the backoff indefinitely.
+ *
+ *   The wipe destroys ONLY local device state.  It does not touch the Stellar
+ *   account or the encrypted cloud backup, so a user with a cloud backup and
+ *   their recovery password loses nothing but the need to restore.  A user
+ *   WITHOUT a cloud backup loses the wallet permanently — there is no other
+ *   copy of the seed.  Because of that asymmetry the UI must warn before the
+ *   threshold is reached, not at it: attemptsUntilWipe() drives a countdown
+ *   from WIPE_WARNING_THRESHOLD onward, and LoginScreen surfaces it.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -58,16 +95,31 @@ const BIOMETRIC_BACKUP_KEY = 'cpay_stellar_biometric_backup';
 const BIOMETRIC_BACKUP_AVAILABLE_KEY = 'cpay_stellar_biometric_backup_available';
 /** Persisted PIN attempt state: { attempts, lockedUntil } */
 const PIN_ATTEMPTS_KEY = 'cpay_pin_attempts';
+/** Pending values make PIN changes recoverable if the app is killed mid-write. */
+const PENDING_WALLET_KEY = `${WALLET_KEY}_pending`;
+const PENDING_PIN_KEY = `${PIN_KEY}_pending`;
+const PENDING_SALT_KEY = `${SALT_KEY}_pending`;
 
 // ─── Versioning & KDF constants ───────────────────────────────────────────────
 const WALLET_STORAGE_VERSION = 4;
 const PIN_VERIFIER_VERSION = 2;
 /** Legacy PBKDF2 iterations used before v2 verifiers. Migrated on next login. */
 const LEGACY_PIN_KDF_ITERATIONS = 120_000;
-/** PBKDF2-SHA256 iterations for the PIN *verifier* (login check). */
-const PIN_KDF_ITERATIONS = 20_000;
-/** PBKDF2-SHA256 iterations for *wallet* key derivation (paid once per session). */
-const WALLET_KDF_ITERATIONS = 80_000;
+/**
+ * PBKDF2-SHA256 iterations for the PIN *verifier* (login check).
+ * OWASP 2023 floor for PBKDF2-SHA256. Raised from 20 000 (issue #36).
+ */
+export const PIN_KDF_ITERATIONS = 210_000;
+/**
+ * PBKDF2-SHA256 iterations for *wallet* key derivation (paid once per session).
+ * Raised from 80 000 (issue #36).
+ */
+export const WALLET_KDF_ITERATIONS = 600_000;
+/**
+ * Identifies the wallet key-derivation scheme. Bump when the KDF itself
+ * changes (e.g. to Argon2id) so stored wallets can be re-wrapped on unlock.
+ */
+const WALLET_KDF_VERSION = 1;
 
 // ─── Session TTL ──────────────────────────────────────────────────────────────
 /** Wallet and PIN stay in memory for this many milliseconds after last use. */
@@ -83,6 +135,18 @@ export const LOCKOUT_BASE_MS = 30_000; // 30 seconds
 /** Hard ceiling for any single lockout period. */
 export const MAX_LOCKOUT_MS = 60 * 60 * 1000; // 1 hour
 
+// ─── Local wipe policy ────────────────────────────────────────────────────────
+/**
+ * Consecutive wrong PINs after which the local wallet is erased.
+ * See the "Local wipe policy" note at the top of this file.
+ */
+export const WIPE_PIN_ATTEMPTS = 15;
+/**
+ * Start warning the user about the impending wipe from this attempt onward,
+ * so the wipe is never a surprise.
+ */
+export const WIPE_WARNING_THRESHOLD = 10;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type StoredWalletPayload = {
@@ -91,6 +155,11 @@ type StoredWalletPayload = {
   cipher: 'xchacha20-poly1305';
   kdf: 'pbkdf2-sha256';
   kdfIterations: number;
+  /**
+   * Key-derivation scheme version (issue #36). Absent on wallets written
+   * before the re-wrap migration existed; treated as 1.
+   */
+  kdfVersion?: number;
   salt: string;
   nonce: string;
   ciphertext: string;
@@ -142,6 +211,16 @@ type VerifyPinOptions = {
   migrate?: boolean;
   blockMigration?: boolean;
 };
+
+export type WalletOperationError = 'INVALID_PIN' | 'STORAGE_ERROR';
+
+export type VerifyPinResult =
+  | { success: true }
+  | { success: false; error: WalletOperationError; rawError?: unknown };
+
+export type GetWalletResult =
+  | { success: true; wallet: StellarWallet }
+  | { success: false; wallet: null; error: WalletOperationError; rawError?: unknown };
 
 // ─── In-memory session state ──────────────────────────────────────────────────
 
@@ -232,6 +311,42 @@ export function lockoutRemainingMs(state: PinAttemptState): number {
   return state.lockedUntil - Date.now();
 }
 
+/**
+ * Wrong attempts left before the local wallet is wiped.
+ * Clamped at 0; never negative.
+ */
+export function attemptsUntilWipe(state: PinAttemptState): number {
+  return Math.max(0, WIPE_PIN_ATTEMPTS - state.attempts);
+}
+
+/**
+ * True once the user should be warned that continued wrong PINs will erase
+ * the wallet from this device.
+ */
+export function shouldWarnAboutWipe(state: PinAttemptState): boolean {
+  return state.attempts >= WIPE_WARNING_THRESHOLD && state.attempts < WIPE_PIN_ATTEMPTS;
+}
+
+/**
+ * True when the wipe threshold has been reached and the local wallet must go.
+ */
+export function shouldWipeWallet(state: PinAttemptState): boolean {
+  return state.attempts >= WIPE_PIN_ATTEMPTS;
+}
+
+/**
+ * Erase the local wallet after too many failed PIN attempts.
+ *
+ * This removes local device state only — the Stellar account and any encrypted
+ * cloud backup are untouched. Callers MUST have warned the user beforehand
+ * (see shouldWarnAboutWipe) because a user without a cloud backup loses the
+ * wallet permanently.
+ */
+export async function wipeWalletAfterFailedAttempts(): Promise<void> {
+  clearSessionPin();
+  await clearWallet();
+}
+
 // ─── Core wallet API ──────────────────────────────────────────────────────────
 
 export async function getWalletFromSession(): Promise<StellarWallet | null> {
@@ -241,7 +356,8 @@ export async function getWalletFromSession(): Promise<StellarWallet | null> {
   const pin = getCachedPin();
   if (!pin) return null;
 
-  return getWallet(pin);
+  const res = await getWallet(pin);
+  return res.success ? res.wallet : null;
 }
 
 export async function createWallet(pin: string): Promise<string> {
@@ -256,21 +372,24 @@ export async function createWallet(pin: string): Promise<string> {
   return publicKey;
 }
 
-export async function getWallet(pin: string): Promise<StellarWallet | null> {
+export async function getWallet(pin: string): Promise<GetWalletResult> {
   try {
-    const isValidPin = await verifyPin(pin);
-    if (!isValidPin) {
-      throw new Error('Invalid PIN');
+    const pinResult = await verifyPin(pin);
+    if (!pinResult.success) {
+      return { success: false, wallet: null, error: pinResult.error, rawError: pinResult.rawError };
     }
 
     const secret = await readSecret(pin);
-    if (!secret) return null;
+    if (!secret) {
+      return { success: false, wallet: null, error: 'STORAGE_ERROR' };
+    }
 
     cachePinForSession(pin);
-    return cacheWalletForSession(secret);
+    const wallet = cacheWalletForSession(secret);
+    return { success: true, wallet };
   } catch (error) {
     console.error('Error getting wallet:', error);
-    return null;
+    return { success: false, wallet: null, error: 'STORAGE_ERROR', rawError: error };
   }
 }
 
@@ -293,25 +412,36 @@ export async function hasWallet(): Promise<boolean> {
   }
 }
 
-export async function verifyPin(pin: string, options: VerifyPinOptions = {}): Promise<boolean> {
+export async function verifyPin(pin: string, options: VerifyPinOptions = {}): Promise<VerifyPinResult> {
   try {
     const { migrate = true, blockMigration = true } = options;
-    const [storedPinVerifier, saltHex] = await Promise.all([
-      SecureStore.getItemAsync(PIN_KEY),
-      SecureStore.getItemAsync(SALT_KEY),
-    ]);
+    const candidates = [
+      [PIN_KEY, SALT_KEY],
+      [PENDING_PIN_KEY, PENDING_SALT_KEY],
+    ] as const;
+    let pinHash: string | null = null;
+    let verifier: ReturnType<typeof parsePinVerifier> | null = null;
+    for (const [pinKey, saltKey] of candidates) {
+      const [storedPinVerifier, saltHex] = await Promise.all([
+        SecureStore.getItemAsync(pinKey), SecureStore.getItemAsync(saltKey),
+      ]);
+      if (!storedPinVerifier || !saltHex) continue;
+      const parsed = parsePinVerifier(storedPinVerifier);
+      const candidateHash = await hashPinWithSalt(pin, saltHex, parsed.kdfIterations);
+      if (parsed.hash === candidateHash) {
+        pinHash = candidateHash;
+        verifier = parsed;
+        break;
+      }
+    }
 
-    if (!storedPinVerifier || !saltHex) return false;
-
-    const verifier = parsePinVerifier(storedPinVerifier);
-    const pinHash = await hashPinWithSalt(pin, saltHex, verifier.kdfIterations);
-    const isValid = verifier.hash === pinHash;
+    const isValid = pinHash !== null;
 
     if (isValid) {
-      cachedPinHash = pinHash;
+      cachedPinHash = pinHash!;
       cachePinForSession(pin);
 
-      if (verifier.needsMigration && migrate) {
+      if (verifier!.needsMigration && migrate) {
         const migration = storePinVerifier(pin);
         if (blockMigration) {
           await migration;
@@ -321,25 +451,56 @@ export async function verifyPin(pin: string, options: VerifyPinOptions = {}): Pr
           });
         }
       }
+      return { success: true };
     }
 
-    return isValid;
+    return { success: false, error: 'INVALID_PIN' };
   } catch (error) {
     console.error('Error verifying PIN:', error);
-    return false;
+    return { success: false, error: 'STORAGE_ERROR', rawError: error };
   }
 }
 
 export async function changeWalletPin(oldPin: string, newPin: string): Promise<void> {
-  const isValidOldPin = await verifyPin(oldPin, { migrate: false });
-  if (!isValidOldPin) throw new Error('Invalid current PIN');
+  const pinResult = await verifyPin(oldPin, { migrate: false });
+  if (!pinResult.success) {
+    if (pinResult.error === 'STORAGE_ERROR') {
+      throw new Error("Couldn't access secure storage — try again.");
+    }
+    throw new Error('Invalid current PIN');
+  }
 
   const secret = await readSecret(oldPin);
   if (!secret) throw new Error('Wallet not found');
 
-  await SecureStore.deleteItemAsync(SALT_KEY);
-  await storeSecret(secret, newPin);
-  await storePinVerifier(newPin);
+  // Stage every new value first. The old wallet remains usable until the
+  // staged wallet and verifier have both been written and validated.
+  const pendingSalt = bytesToHex(await Crypto.getRandomBytesAsync(16));
+  const pendingHash = await hashPinWithSalt(newPin, pendingSalt, PIN_KDF_ITERATIONS);
+  const pendingVerifier: StoredPinVerifierPayload = {
+    version: PIN_VERIFIER_VERSION,
+    kdf: 'pbkdf2-sha256',
+    kdfIterations: PIN_KDF_ITERATIONS,
+    hash: pendingHash,
+    updatedAt: new Date().toISOString(),
+  };
+  await SecureStore.setItemAsync(PENDING_SALT_KEY, pendingSalt);
+  await SecureStore.setItemAsync(PENDING_PIN_KEY, JSON.stringify(pendingVerifier));
+  await storeSecretWithSalt(secret, newPin, hexToBytes(pendingSalt), PENDING_WALLET_KEY);
+  if (!(await readSecretAt(newPin, PENDING_WALLET_KEY))) {
+    throw new Error('Unable to validate staged wallet during PIN change');
+  }
+
+  // Copying can be interrupted safely: verifyPin/readSecret also inspect the
+  // complete pending set, so either old or new credentials remain usable.
+  await SecureStore.setItemAsync(WALLET_KEY, (await SecureStore.getItemAsync(PENDING_WALLET_KEY))!);
+  await SecureStore.setItemAsync(SALT_KEY, pendingSalt);
+  await SecureStore.setItemAsync(PIN_KEY, JSON.stringify(pendingVerifier));
+  await Promise.all([
+    SecureStore.deleteItemAsync(PENDING_WALLET_KEY),
+    SecureStore.deleteItemAsync(PENDING_SALT_KEY),
+    SecureStore.deleteItemAsync(PENDING_PIN_KEY),
+  ]);
   cachePinForSession(newPin);
   cacheWalletForSession(secret);
 }
@@ -416,8 +577,11 @@ async function deriveWalletKey(pin: string, salt: Uint8Array, iterations: number
 // ─── Wallet encryption ────────────────────────────────────────────────────────
 
 async function storeSecret(secret: string, pin: string): Promise<void> {
+  await storeSecretWithSalt(secret, pin, await Crypto.getRandomBytesAsync(16), WALLET_KEY);
+}
+
+async function storeSecretWithSalt(secret: string, pin: string, salt: Uint8Array, keyName: string): Promise<void> {
   const wallet = createWalletObject(secret);
-  const salt = await Crypto.getRandomBytesAsync(16);
   const nonce = await Crypto.getRandomBytesAsync(24);
   const key = await deriveWalletKey(pin, salt, WALLET_KDF_ITERATIONS);
   const cipher = xchacha20poly1305(key, nonce);
@@ -429,17 +593,47 @@ async function storeSecret(secret: string, pin: string): Promise<void> {
     cipher: 'xchacha20-poly1305',
     kdf: 'pbkdf2-sha256',
     kdfIterations: WALLET_KDF_ITERATIONS,
+    kdfVersion: WALLET_KDF_VERSION,
     salt: bytesToHex(salt),
     nonce: bytesToHex(nonce),
     ciphertext: bytesToHex(ciphertext),
     updatedAt: new Date().toISOString(),
   };
 
-  await SecureStore.setItemAsync(WALLET_KEY, JSON.stringify(payload));
+  await SecureStore.setItemAsync(keyName, JSON.stringify(payload));
+}
+
+/**
+ * Re-wrap a decrypted wallet at the current KDF cost if it was stored at a
+ * weaker one (issue #36).
+ *
+ * Runs only after a successful unlock, so the user is never asked to re-enter
+ * or re-import anything — the migration is invisible. A fresh salt and nonce
+ * are generated, so this is a full re-encryption rather than a rewrite of the
+ * same ciphertext.
+ *
+ * Returns true if a re-wrap was performed.
+ */
+async function maybeRewrapWalletSecret(
+  secret: string,
+  pin: string,
+  payload: Partial<StoredWalletPayload>,
+  keyName: string,
+): Promise<boolean> {
+  const atCurrentCost = payload.kdfIterations === WALLET_KDF_ITERATIONS;
+  const atCurrentVersion = (payload.kdfVersion ?? 1) === WALLET_KDF_VERSION;
+  if (atCurrentCost && atCurrentVersion) return false;
+
+  await storeSecretWithSalt(secret, pin, await Crypto.getRandomBytesAsync(16), keyName);
+  return true;
 }
 
 async function readSecret(pin: string): Promise<string | null> {
-  const stored = await SecureStore.getItemAsync(WALLET_KEY);
+  return (await readSecretAt(pin, WALLET_KEY)) || (await readSecretAt(pin, PENDING_WALLET_KEY));
+}
+
+async function readSecretAt(pin: string, keyName: string): Promise<string | null> {
+  const stored = await SecureStore.getItemAsync(keyName);
   if (!stored) return null;
 
   try {
@@ -461,7 +655,16 @@ async function readSecret(pin: string): Promise<string | null> {
     const plaintext = cipher.decrypt(hexToBytes(payload.ciphertext));
     const secret = bytesToUtf8(plaintext);
 
-    if (StellarSdk.StrKey.isValidEd25519SecretSeed(secret)) return secret;
+    if (StellarSdk.StrKey.isValidEd25519SecretSeed(secret)) {
+      // Issue #36 migration: a wallet wrapped at an older/weaker KDF cost is
+      // re-wrapped at the current one now that we hold the plaintext and a
+      // verified PIN. Best-effort and non-blocking — a failure here must never
+      // prevent an otherwise valid unlock, since the existing blob still works.
+      void maybeRewrapWalletSecret(secret, pin, payload, keyName).catch((error) => {
+        console.warn('Wallet KDF re-wrap failed; keeping existing blob:', error);
+      });
+      return secret;
+    }
   } catch (error) {
     console.error('Wallet decrypt failed:', error);
     return null;
@@ -516,10 +719,13 @@ export async function clearBiometricBackup(): Promise<void> {
 export async function clearWallet(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(WALLET_KEY);
+    await SecureStore.deleteItemAsync(PENDING_WALLET_KEY);
     await SecureStore.deleteItemAsync(SALT_KEY);
+    await SecureStore.deleteItemAsync(PENDING_SALT_KEY);
     await SecureStore.deleteItemAsync(BIOMETRIC_BACKUP_KEY);
     await SecureStore.deleteItemAsync(BIOMETRIC_BACKUP_AVAILABLE_KEY);
     await SecureStore.deleteItemAsync(PIN_KEY);
+    await SecureStore.deleteItemAsync(PENDING_PIN_KEY);
     await SecureStore.deleteItemAsync(PIN_ATTEMPTS_KEY);
     cachedPinHash = null;
     clearSessionPin();
