@@ -9,7 +9,6 @@
 [![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://reactnative.dev/)
 [![Expo](https://img.shields.io/badge/Expo-54-000020?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
 [![Stellar](https://img.shields.io/badge/Stellar-Testnet-7D00FF?style=for-the-badge&logo=stellar&logoColor=white)](https://stellar.org/)
-[![Soroban](https://img.shields.io/badge/Soroban-Rust-000000?style=for-the-badge&logo=rust&logoColor=white)](https://soroban.stellar.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)](LICENSE)
 
@@ -90,7 +89,6 @@ _No crypto knowledge required_
 ❌ Seed phrases exposed to users  
 ❌ Users pay network fees directly  
 ❌ Trustlines are confusing  
-❌ Merchant flows are separate  
 ❌ Blockchain concepts appear in the UX
 
 </td>
@@ -110,19 +108,23 @@ _No crypto knowledge required_
 
 ### Planned Feature Improvements
 
-C-Pay is intentionally running as a closed testnet pilot today. The current app proves the wallet, QR payment, merchant, recovery, and relayer flows with pilot credits. The production direction adds stronger identity, fiat rails, and withdrawal support before any real-money rollout.
+C-Pay is a closed testnet pilot. It proves the wallet, QR payment, recovery, and
+relayer flows using pilot credits that have **no cash value**.
 
-| Area | Current Pilot | Planned Production Direction |
-| --- | --- | --- |
-| User verification | Email OTP through Supabase for onboarding and account recovery | Phone OTP verification through a production SMS provider, with email as an additional recovery/contact channel |
-| User KYC | Not required for pilot credits because they have no cash value | User KYC before real fiat add-money, withdrawals, higher limits, or regulated payment features |
-| Merchant checks | Merchant profile and contract registration for QR payment acceptance | Merchant KYS/KYB review before accepting real customer payments, including business identity, settlement details, and risk checks |
-| Receive money | Users and merchants can receive pilot credits through wallet address, C-Pay ID, and QR flows | Receive from all approved sources supported by C-Pay, including app-to-app payments, merchant QR, and future fiat/on-ramp sources |
-| Add Money | Closed-pilot claim flow adds test credits for demo and testing | Fiat bridge flow where users pay INR or another supported fiat source, then C-Pay processes the requested value into the app after verification |
-| Withdrawals | Not enabled in the pilot app | Withdrawal flow for eligible users and merchants after KYC/KYS checks, balance validation, risk review, and supported settlement rail availability |
-| Limits and risk | Basic app-side limits for pilot payments | Compliance-aware limits based on KYC/KYS status, transaction history, source of funds, and operational risk rules |
+| Area | Current Pilot |
+| --- | --- |
+| User verification | Email OTP through Supabase for onboarding and account recovery |
+| User KYC | Not required — pilot credits have no cash value |
+| Receive money | Users can receive pilot credits through wallet address, C-Pay ID, and QR flows |
+| Add Money | Closed-pilot claim flow adds test credits for demo and testing |
+| Withdrawals | **Not implemented.** See the withdrawal note below |
+| Limits and risk | Basic app-side limits for pilot payments |
 
-The guiding rule is simple: pilot credits are for testing the experience; real-money features require verified users, verified merchants, compliant fiat processing, and clear settlement controls.
+**No real-money features are planned or in development.** Merchant acceptance,
+KYC/KYB, fiat on-ramps, and withdrawals were previously described here as a
+production direction; that roadmap has been withdrawn. Each of them requires
+regulatory approval and compliance infrastructure well beyond what this project
+has, and describing them as planned overstated where the project stands.
 
 > **Support the journey:** C-Pay is still evolving toward stronger compliance, better payment rails, and real market fit. Feedback, technical help, product guidance, partnerships, and pilot testing support are welcome to improve the app and shape it into something people can trust and use every day.
 
@@ -132,8 +134,8 @@ The guiding rule is simple: pilot credits are for testing the experience; real-m
 🌐 Network: Stellar testnet        🪙 Asset: CPINR
 📱 Mobile: Expo React Native       🔐 Wallet: Stellar keypair, encrypted locally
 🧾 Backend: Express relayer        🗄️ Data: Supabase
-🦀 Contract: Soroban Rust          ⚙️ Runtime relayer port: 3000
-📧 Auth: Supabase email OTP        ☁️ Recovery: encrypted wallet backup
+📧 Auth: Supabase email OTP        ⚙️ Runtime relayer port: 3000
+☁️ Recovery: encrypted wallet backup
 ```
 
 ### Closed Pilot Mode
@@ -187,12 +189,12 @@ C-Pay completed a closed testnet pilot with a small group of users. Feedback was
 
 ### Key Themes
 
-- **Withdrawal support** is the most requested feature; it is planned for a future production phase after real-money compliance and banking approvals are in place.
-- **Dark theme default** and **wallet address visibility** were requested for the home/profile screens.
+- **Withdrawal support** is the most requested feature. **Not implemented, and not planned** — it requires real-money settlement and regulatory approval this project does not have.
+- **Dark theme default** and **wallet address visibility** were requested for the home/profile screens. **Neither is implemented**; the app has no dark mode.
 - **Overall experience** was rated highly across sending, receiving, balance checks, and QR flows.
 - **Media-library permission** error was reported in Expo Go and resolved by building a development/production APK.
 
-> **Withdrawal note:** Withdrawal is planned as a future implementation because it requires real-money interaction, banking/payment authority approval, compliance review, and proper mentoring before production rollout. The current C-Pay app is a closed-pilot Stellar testnet app, so pilot credits have no real cash value.
+> **Withdrawal note:** Withdrawal is **not implemented and not planned**. It would require real-money settlement, banking/payment authority approval, and compliance review that this project does not have. C-Pay is a closed-pilot Stellar testnet app; pilot credits have no cash value and cannot be withdrawn or exchanged.
 
 Have feedback? Open an [issue](https://github.com/soumen0818/C-Pay/issues) or start a [discussion](https://github.com/soumen0818/C-Pay/discussions).
 
@@ -215,8 +217,6 @@ Have feedback? Open an [issue](https://github.com/soumen0818/C-Pay/issues) or st
   </tr>
   <tr>
     <td align="center"><img src="public/user_qr.jpeg" alt="User QR screen" width="180" /><br /><sub>User QR</sub></td>
-    <td align="center"><img src="public/merchant_qr.jpeg" alt="Merchant QR screen" width="180" /><br /><sub>Merchant QR</sub></td>
-    <td align="center"><img src="public/merchant_dashboard.jpeg" alt="Merchant dashboard screen" width="180" /><br /><sub>Merchant Dashboard</sub></td>
     <td align="center"><img src="public/profile.jpeg" alt="Profile screen" width="180" /><br /><sub>Profile</sub></td>
   </tr>
   <tr>
@@ -231,25 +231,18 @@ Have feedback? Open an [issue](https://github.com/soumen0818/C-Pay/issues) or st
 
 ## 🌐 Current Testnet Values
 
-These values are public and come from `Blockchain/contract-ids.json`.
+These values are public and define the current Stellar testnet environment.
 
 | Item | Current Value |
 | --- | --- |
 | Stellar network | `testnet` |
 | Network passphrase | `Test SDF Network ; September 2015` |
 | Horizon URL | `https://horizon-testnet.stellar.org` |
-| Soroban RPC URL | `https://soroban-testnet.stellar.org` |
 | Explorer | `https://stellar.expert/explorer/testnet` |
 | Asset | `CPINR:GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ` |
 | CPINR issuer public key | `GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ` |
-| Stellar Asset Contract ID | `CDR6RDWPZAHOARJKV5YF57VEOE2PJQP6KTE5FGQSJVKLPN5M3KCFE3SN` |
-| Stellar Asset Contract Explorer | [Open on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CDR6RDWPZAHOARJKV5YF57VEOE2PJQP6KTE5FGQSJVKLPN5M3KCFE3SN) |
-| C-Pay payments contract ID | `CBHYSB5W6TRDTGGYSZUYJBXPPIO7XJS2SLNHJVKWEINOKQC7MKU4N6CR` |
-| C-Pay payments contract Explorer | [Open on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CBHYSB5W6TRDTGGYSZUYJBXPPIO7XJS2SLNHJVKWEINOKQC7MKU4N6CR) |
-| C-Pay payments Wasm hash | `24522af6d53859f9c453cea65912c4b13000baec04301598b12edc905f084fb9` |
-| Contract record updated | `2026-04-27T03:33:54.623Z` |
 
-> **Important:** Public keys and contract IDs are safe to document. Stellar secret seeds beginning with `S` must never be added to the mobile app or committed to source control.
+> **Important:** Public keys are safe to document. Stellar secret seeds beginning with `S` must never be added to the mobile app or committed to source control.
 
 ---
 
@@ -272,8 +265,7 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 🏦 Bank account → VPA  
 🔐 Net banking → UPI PIN  
 📋 Account number → QR code  
-⏰ Slow transfers → Fast settlement  
-🏪 Separate POS → Unified merchant QR
+⏰ Slow transfers → Fast settlement
 
 </td>
 <td>
@@ -281,8 +273,7 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 🔑 Stellar secret → encrypted local wallet  
 🔐 Secret signing → PIN/biometric unlock  
 📍 Wallet address → C-Pay ID and QR  
-⛽ Network fees → relayer fee-bump flow  
-🏪 Merchant registry → C-Pay merchant mode
+⛽ Network fees → relayer fee-bump flow
 
 </td>
 </tr>
@@ -315,7 +306,7 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 <details open>
 <summary><b>Payments</b></summary>
 
-- 📸 **QR Code Scanning** - Scan user or merchant QR codes.
+- 📸 **QR Code Scanning** - Scan user QR codes.
 - 💸 **Send Money** - Send CPINR to Stellar accounts through a signed app transaction.
 - 🎁 **Add Money** - Relayer distributes configured CPINR amount from the distribution account.
 - ⏱️ **Claim Cooldown** - After a pilot credit claim, users see the remaining time before the next claim.
@@ -338,33 +329,26 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 
 </details>
 
-### 🏪 Merchant Features
+### 🏪 Merchant Features — removed
 
-<details>
-<summary><b>Click to expand merchant features</b></summary>
+The merchant module (registration, dashboard, merchant QR generation, and
+merchant transaction history) **has been removed from the app**. Accepting real
+customer payments requires business identity checks, settlement details, and
+risk review that a closed testnet pilot cannot responsibly provide, so the
+feature was withdrawn rather than shipped unverified.
 
-- 🏪 **Merchant Registration** - Business name, owner details, category, address, and wallet.
-- ☎️ **Merchant Phone Validation** - Contact phone numbers are normalized and limited to a valid 10-15 digit range.
-- 📊 **Merchant Dashboard** - Sales totals, payment insights, and transaction access.
-- 📱 **Global Merchant QR** - Reusable QR for receiving CPINR.
-- 💵 **Amount QR** - Generate QR codes for a fixed payment amount.
-- 📈 **Merchant Transactions** - Dedicated transaction history for business payments.
-- 🆔 **Merchant C-Pay ID** - Merchant-friendly display identifier.
-- 🔁 **Merchant Restore** - After wallet recovery, merchant details are rehydrated from Supabase by wallet address/auth user.
-- ✅ **Merchant Active State** - Contract-side merchant state supports active/inactive behavior.
-
-</details>
+Merchants are **not** on the near-term roadmap. Anyone reading this section
+looking for those screens will not find them in `App/src/screens/`.
 
 ### 🌐 Platform Features
 
 - 🚀 **Stellar Testnet Rail** - Current app is built around Stellar testnet CPINR.
 - 🧾 **Express Relayer** - Backend handles sponsored setup, Add Money, fee bumps, and status APIs.
-- 🧠 **Soroban Contract** - `cpay_payments` stores merchant and payment-intent state.
-- 🌐 **Supabase Sync** - Users, merchants, QR codes, transactions, Add Money claims, and encrypted wallet backups.
+- 🌐 **Supabase Sync** - Users, transactions, Add Money claims, and encrypted wallet backups.
 - 🔒 **Rate Limiting** - Relayer uses request rate limits.
 - 🩺 **Health Monitoring** - `/health` reports sponsor XLM and distribution CPINR inventory.
 - 🚨 **Low Balance Alerts** - Optional webhook for low sponsor XLM or low CPINR.
-- 🧰 **Operator Scripts** - Key generation, testnet CPINR setup, contract build, and contract deploy.
+- 🧰 **Operator Scripts** - Key generation and testnet CPINR setup.
 
 ---
 
@@ -374,13 +358,12 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 
 ```mermaid
 flowchart LR
-    user["User / Merchant"]
+    user["User"]
     app["Expo React Native App<br/>Email OTP, PIN, QR, local wallet signing"]
-    supabase["Supabase Auth + Postgres<br/>users, merchants, transactions<br/>wallet_backups, add_money_claims"]
-    storage["Supabase Storage<br/>profile photos, merchant logos"]
-    relayer["Express Relayer<br/>sponsored setup, Add Money<br/>fee bumps, contract intents"]
+    supabase["Supabase Auth + Postgres<br/>users, transactions<br/>wallet_backups, add_money_claims"]
+    storage["Supabase Storage<br/>profile photos"]
+    relayer["Express Relayer<br/>sponsored setup, Add Money<br/>fee bumps"]
     stellar["Stellar Testnet + Horizon<br/>accounts, trustlines, CPINR"]
-    soroban["Soroban cpay_payments<br/>merchant registry, payment intents"]
 
     user --> app
     app <-->|email session, profile sync, backups| supabase
@@ -388,8 +371,6 @@ flowchart LR
     app -->|Bearer Supabase token + signed XDR| relayer
     relayer -->|verify token / persist claims| supabase
     relayer -->|sponsor, fee-bump, distribute CPINR| stellar
-    relayer -->|register merchant, confirm intent| soroban
-    soroban -->|contract state for merchant/payment flow| stellar
 ```
 
 ### User Workflow Architecture
@@ -401,7 +382,7 @@ sequenceDiagram
     participant App as Expo React Native App
     participant Supabase as Supabase Auth / DB
     participant Relayer as Express Relayer
-    participant Chain as Stellar Horizon / Soroban
+    participant Chain as Stellar Horizon
 
     User->>App: Enter email address
     App->>Supabase: Request Supabase email OTP
@@ -416,9 +397,9 @@ sequenceDiagram
     App->>Relayer: Send bearer token with signed XDR/payment request
     Relayer->>Supabase: Verify token and persist claim cooldown when configured
     Relayer->>Chain: Submit fee-bump payment or CPINR distribution
-    Chain-->>Relayer: Return transaction hash / contract status
+    Chain-->>Relayer: Return transaction hash
     Relayer-->>App: Return receipt, failure, or claim countdown
-    App->>Supabase: Sync transaction, merchant, and profile state
+    App->>Supabase: Sync transaction and profile state
 ```
 
 ### Component Architecture
@@ -429,7 +410,7 @@ App/
 ├── index.ts
 ├── src/
 │   ├── navigation/             # Stack + tab navigation
-│   ├── screens/                # Onboarding, PIN, Home, Profile, Payment, Merchant
+│   ├── screens/                # Onboarding, PIN, Home, Profile, Payment
 │   ├── components/             # Buttons, cards, PIN input, modals, transaction UI
 │   ├── services/
 │   │   ├── wallet.ts           # Stellar keypair, encrypted wallet, PIN verifier
@@ -437,7 +418,6 @@ App/
 │   │   ├── auth.ts             # OTP and sign-out
 │   │   ├── cloudWalletBackup.ts # Encrypted Supabase wallet backup
 │   │   ├── storage.ts          # Local + Supabase transaction storage
-│   │   ├── merchant.ts         # Merchant database helpers
 │   │   └── supabase.ts         # Supabase client
 │   ├── utils/
 │   │   ├── cpayId.ts           # C-Pay ID generation and lookup
@@ -452,14 +432,11 @@ relayer-service/
 └── .env.example                # Backend env template
 │
 Blockchain/
-├── contracts/cpay_payments/    # Rust Soroban contract
 ├── scripts/create-keypairs.js  # Generate setup keypairs
 ├── scripts/setup-testnet-asset.js
-├── scripts/deploy-contract.js
 ├── src/config.js
 ├── src/stellarRail.js
-├── test/stellarRail.test.js
-└── contract-ids.json
+└── test/stellarRail.test.js
 ```
 
 ### Data Flow
@@ -507,10 +484,10 @@ PIN-independent recovery password decrypts the Stellar secret
   ↓
 User creates a new local 6-digit PIN
   ↓
-App recreates SecureStore wallet and rehydrates profile/merchant state
+App recreates SecureStore wallet and rehydrates profile state
 ```
 
-The cloud backup restores the Stellar wallet. Profile and merchant details come from Supabase rows keyed by `auth_user_id`, email, and wallet address.
+The cloud backup restores the Stellar wallet. Profile details come from Supabase rows keyed by `auth_user_id`, email, and wallet address.
 
 </details>
 
@@ -582,21 +559,16 @@ users
   profile_photo_url, display_name, stellar_network, cpinr_asset_code,
   cpinr_asset_issuer, created_at, updated_at
 
-merchants
-  id, auth_user_id, business_name, wallet_address, cpay_id, owner_name, email,
-  phone_number, business_address, category, logo_url, is_active,
-  total_transactions, total_revenue, stellar_network, cpinr_asset_code,
-  cpinr_asset_issuer, created_at, updated_at
+-- merchants / merchant_qr_codes: DROPPED.
+-- See supabase/migrations/20260828000001_drop_merchant_schema.sql. The merchant
+-- columns on transactions below are dropped by the same migration; pilot
+-- merchant_name values are preserved into recipient_name / note first.
 
 transactions
   id, user_id, transaction_id, transaction_type, merchant_id, tx_hash,
   stellar_network, asset_code, asset_issuer, to_address, from_address,
   amount, status, internal_status, user_visible_status, merchant_name,
   note, sender_name, recipient_name, failure_reason, timestamps
-
-merchant_qr_codes
-  id, merchant_id, qr_name, amount, asset_code, asset_issuer,
-  is_active, scan_count, timestamps
 
 add_money_claims
   id, wallet_address, amount, asset_code, asset_issuer, tx_hash,
@@ -623,7 +595,7 @@ Important schema notes:
 - `wallet_backups` is one row per Supabase `auth.users.id`, enforced by `UNIQUE(auth_user_id)`.
 - `add_money_claims` is used by the relayer for persistent pilot-credit cooldowns. Without it, cooldown can still work in relayer memory, but it will not survive restarts or multi-instance deployment.
 - `relayer_idempotency_keys` is reserved in the schema; the current relayer code uses an in-memory idempotency cache.
-- `get_own_merchant_by_wallet(p_wallet_address)` lets the app restore merchant state after wallet recovery while keeping RLS user-scoped.
+
 
 ---
 
@@ -647,15 +619,10 @@ CryptoPay/
 │       └── utils/
 │
 ├── Blockchain/
-│   ├── contract-ids.json
 │   ├── package.json
 │   ├── src/
 │   ├── scripts/
-│   ├── test/
-│   └── contracts/
-│       └── cpay_payments/
-│           ├── Cargo.toml
-│           └── src/lib.rs
+│   └── test/
 │
 ├── relayer-service/
 │   ├── package.json
@@ -663,7 +630,6 @@ CryptoPay/
 │   ├── test-relayer.js
 │   └── .env.example
 │
-├── MANUAL_SETUP.md
 └── README.md
 ```
 
@@ -676,8 +642,6 @@ CryptoPay/
 ```bash
 node --version
 npm --version
-stellar version
-rustup target add wasm32v1-none
 ```
 
 Required tools:
@@ -686,8 +650,6 @@ Required tools:
 - npm
 - Expo through `npm start` or `npx expo`
 - Supabase project
-- Rust 1.84 or newer
-- Stellar CLI v25 or newer
 - Android device with Expo Go, Android emulator, iOS simulator, or development build
 
 ### Install Dependencies
@@ -744,7 +706,7 @@ The CI pipeline runs on pushes to `main`/`master`, pull requests, and manual `wo
 | --- | --- |
 | `Mobile app` | `npm ci`, Expo dependency compatibility, TypeScript compile |
 | `Relayer` | `npm ci`, Node syntax checks, Jest with `--passWithNoTests` |
-| `Blockchain and contract` | `npm ci`, Stellar rail Jest tests, Rust formatting, Soroban contract tests |
+| `Blockchain` | `npm ci`, Stellar rail Jest tests |
 
 The EAS production build workflow runs automatically for Android APK builds when changes under `App/` are pushed to `main` or `master`. It can also be started manually with `android`, `ios`, or `all` as the platform input. The workflow is guarded by the repository secret `EXPO_TOKEN` and also accepts an existing `EAS_TOKEN` as a fallback; if neither secret is configured, it exits successfully with a clear skip message instead of failing unexpectedly.
 
@@ -779,15 +741,6 @@ The keypair script prints:
 
 - `ASSET_ISSUER_PUBLIC_KEY` and `ASSET_ISSUER_SECRET`
 - `ASSET_DISTRIBUTION_PUBLIC_KEY` and `ASSET_DISTRIBUTION_SECRET`
-- `CONTRACT_ADMIN_PUBLIC_KEY` and `CONTRACT_ADMIN_SECRET`
-- `RELAYER_PUBLIC_KEY` and `RELAYER_SECRET`
-
-Create the Stellar CLI deployer identity:
-
-```bash
-stellar keys generate cpay-deployer --fund
-stellar keys public-key cpay-deployer
-```
 
 Testnet asset setup:
 
@@ -811,30 +764,6 @@ Run:
 npm run setup:testnet
 ```
 
-Contract deployment values:
-
-```text
-SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-SOROBAN_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-STELLAR_CLI_NETWORK=testnet
-STELLAR_CLI_SOURCE_ACCOUNT=cpay-deployer
-CONTRACT_ADMIN_PUBLIC_KEY=<contract admin public key>
-RELAYER_PUBLIC_KEY=<contract relayer public key>
-```
-
-Build and deploy:
-
-```bash
-npm run contract:build
-npm run deploy:contract
-```
-
-The deploy script writes:
-
-```text
-Blockchain/contract-ids.json
-```
-
 ### 3. Relayer Setup
 
 ```bash
@@ -854,19 +783,11 @@ STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 STELLAR_BASE_FEE=100
 
-SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-TOKEN_CONTRACT_ID=CDR6RDWPZAHOARJKV5YF57VEOE2PJQP6KTE5FGQSJVKLPN5M3KCFE3SN
-CPAY_CONTRACT_ID=CBHYSB5W6TRDTGGYSZUYJBXPPIO7XJS2SLNHJVKWEINOKQC7MKU4N6CR
-CONTRACT_FLOW_ENABLED=true
-CONTRACT_INTENT_TTL_SECONDS=600
-
 CPINR_ASSET_CODE=CPINR
 CPINR_ASSET_ISSUER=GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ
 
 SPONSOR_SECRET=<sponsor secret seed>
 DISTRIBUTION_SECRET=<distribution secret seed>
-RELAYER_SECRET=<contract relayer secret seed>
-CONTRACT_ADMIN_SECRET=<contract admin secret seed>
 
 STARTING_BALANCE=1.5
 TRUSTLINE_LIMIT=1000000000
@@ -1010,13 +931,6 @@ npx expo start --clear
 | `CPINR_ASSET_ISSUER` | Yes | CPINR issuer public key |
 | `SPONSOR_SECRET` | Yes | Sponsor account secret seed |
 | `DISTRIBUTION_SECRET` | Yes | Distribution account secret seed |
-| `SOROBAN_RPC_URL` | Contract flow | Soroban RPC endpoint |
-| `TOKEN_CONTRACT_ID` | Contract flow | Stellar Asset Contract ID for CPINR |
-| `CPAY_CONTRACT_ID` | Contract flow | Deployed C-Pay payments contract ID |
-| `CONTRACT_FLOW_ENABLED` | No | Enables merchant payment intent flow when contract env is present |
-| `CONTRACT_INTENT_TTL_SECONDS` | No | Payment intent expiry window, defaults to 600 seconds |
-| `RELAYER_SECRET` | Contract confirmation | Secret seed matching the contract relayer public key |
-| `CONTRACT_ADMIN_SECRET` | Merchant sync | Secret seed matching the contract admin public key |
 | `STARTING_BALANCE` | Yes | XLM for sponsored user account creation |
 | `TRUSTLINE_LIMIT` | Yes | CPINR trustline limit |
 | `FEE_BUMP_MULTIPLIER` | Yes | Fee-bump max fee multiplier |
@@ -1044,19 +958,11 @@ npx expo start --clear
 | `STELLAR_NETWORK` | Yes | `testnet` or `public` |
 | `STELLAR_HORIZON_URL` | Yes | Horizon endpoint |
 | `STELLAR_NETWORK_PASSPHRASE` | Yes | Network passphrase |
-| `SOROBAN_RPC_URL` | Deploy | Soroban RPC URL |
-| `SOROBAN_NETWORK_PASSPHRASE` | Deploy | Soroban passphrase |
-| `STELLAR_CLI_NETWORK` | Deploy | Stellar CLI network alias |
-| `STELLAR_CLI_SOURCE_ACCOUNT` | Deploy | CLI identity such as `cpay-deployer` |
 | `ASSET_CODE` | Yes | `CPINR` |
 | `ASSET_ISSUER_PUBLIC_KEY` | Yes | Issuer public key |
 | `ASSET_DISTRIBUTION_PUBLIC_KEY` | Setup | Distribution public key |
 | `ASSET_ISSUER_SECRET` | Testnet setup | Issuer secret seed |
 | `ASSET_DISTRIBUTION_SECRET` | Testnet setup | Distribution secret seed |
-| `CONTRACT_ADMIN_PUBLIC_KEY` | Deploy | Contract admin public key |
-| `RELAYER_PUBLIC_KEY` | Deploy | Contract relayer public key |
-| `TOKEN_CONTRACT_ID` | Optional | Existing Stellar Asset Contract ID |
-| `CPAY_CONTRACT_ID` | Optional | Existing C-Pay contract ID |
 | `INITIAL_SUPPLY` | Setup | CPINR amount issued to distribution |
 | `TRUSTLINE_LIMIT` | Setup | Distribution trustline limit |
 | `LOCK_ISSUER_AFTER_SETUP` | Optional | Lock issuer master key after setup |
@@ -1101,16 +1007,6 @@ npx expo start --clear
 
 </details>
 
-<details>
-<summary><b>Merchant</b></summary>
-
-- `MerchantRegistrationScreen`
-- `MerchantDashboardScreen`
-- `MerchantQRGeneratorScreen`
-- `MerchantGlobalQRScreen`
-- `MerchantTransactionsScreen`
-
-</details>
 
 ### Relayer Endpoints
 
@@ -1122,58 +1018,9 @@ npx expo start --clear
 | `GET` | `/account/:accountId/balance` | CPINR and XLM balance |
 | `POST` | `/accounts/prepare` | Build sponsored setup transaction |
 | `POST` | `/accounts/submit` | Submit signed setup transaction |
-| `GET` | `/contract/config` | Read deployed C-Pay contract config |
-| `POST` | `/contract/merchants/register` | Sync merchant ID and account to Soroban |
-| `POST` | `/payments/intents/prepare` | Build user-signed contract payment intent transaction |
-| `POST` | `/payments/intents/submit` | Submit signed contract payment intent transaction |
-| `POST` | `/payments/submit` | Validate and submit fee-bump payment, then confirm contract intent when supplied |
+| `POST` | `/payments/submit` | Validate and submit fee-bump payment |
 | `POST` | `/add-money` | Send CPINR from distribution |
 | `GET` | `/tx/:hash` | Transaction status |
-
-### Soroban Contract Functions
-
-| Function | Purpose |
-| --- | --- |
-| `__constructor` | Initialize admin, token, relayer |
-| `config` | Read contract config |
-| `set_admin` | Rotate admin |
-| `set_token` | Update token contract |
-| `set_relayer` | Rotate relayer |
-| `set_paused` | Pause or unpause contract workflow |
-| `register_merchant` | Add merchant account |
-| `set_merchant_account` | Rotate merchant account without overwriting registration |
-| `set_merchant_active` | Enable or disable merchant |
-| `merchant` | Read merchant record |
-| `create_intent` | Create payment intent with bounded expiry |
-| `mark_submitted` | Relayer marks intent as `Submitted` after broadcasting payment |
-| `confirm_intent` | Relayer confirms payment hash on-chain (transitions to `Confirmed`) |
-| `cancel_intent` | Payer cancels intent before relayer submits payment |
-| `expire_intent` | Admin explicitly marks an intent as `Expired` after `expires_at` passes |
-| `mark_reconciliation_needed` | Admin flags a stuck intent for manual review |
-| `intent` | Read intent |
-| `extend_ttl` | Extend instance TTL |
-
-#### Payment Intent Lifecycle
-
-```
-                    payer.cancel_intent()
-                    ┌──────────────────────→ Cancelled (terminal)
-                    │
-Created ────────────┤
-                    │   relayer.mark_submitted()
-                    └──────────────────────→ Submitted
-                                               │
-                                     relayer.confirm_intent()
-                                               ├──────────→ Confirmed (terminal)
-                                               │
-                                     admin.mark_reconciliation_needed()
-                                               ├──────────→ ReconciliationNeeded (terminal)
-                                               │
-Created / Submitted (after expires_at) ────────┘
-        admin.expire_intent()                        → Expired (terminal)
-```
-
-**Trust boundary:** Token movement happens as a classic Stellar payment operation signed by the payer. The contract does not custody tokens or invoke the Stellar Asset Contract directly. The relayer observes the Stellar payment, then calls `mark_submitted` / `confirm_intent` to advance the on-chain intent state. See the contract source for the full trust boundary documentation.
 
 ---
 
@@ -1202,18 +1049,13 @@ Created / Submitted (after expires_at) ────────┘
 </tr>
 <tr>
 <td>Blockchain</td>
-<td>Stellar testnet, Horizon, Soroban</td>
-<td>CPINR balances, transactions, payment-intent contract</td>
-</tr>
-<tr>
-<td>Contract</td>
-<td>Rust, soroban-sdk</td>
-<td>Merchant registry and payment intent state</td>
+<td>Stellar testnet, Horizon</td>
+<td>CPINR balances, payment rail transactions</td>
 </tr>
 <tr>
 <td>Database</td>
 <td>Supabase Postgres</td>
-<td>Auth-linked users, merchants, QR codes, transaction records, encrypted wallet backups</td>
+<td>Auth-linked users, transaction records, encrypted wallet backups</td>
 </tr>
 </table>
 
@@ -1282,9 +1124,8 @@ These policy values are backend `.env` values used by `relayer-service/server.js
 
 | Item | Cost | Notes |
 | --- | --- | --- |
-| Stellar testnet XLM | Free | Fund test accounts with Friendbot or `stellar keys generate --fund` |
+| Stellar testnet XLM | Free | Fund test accounts with Friendbot |
 | CPINR test asset | Free | Issued by the testnet issuer account |
-| Soroban testnet deployment | Free testnet funds | Uses Stellar CLI deployer identity |
 | Supabase local testing | Free tier possible | Depends on project usage |
 | Expo development | Free locally | EAS builds depend on Expo account limits |
 | Relayer local run | Free | Runs on your machine on port `3000` |
@@ -1332,8 +1173,6 @@ These policy values are backend `.env` values used by `relayer-service/server.js
 ### Blockchain
 
 - Issuer secret should be moved to cold custody after setup.
-- Contract admin should be protected with secure custody or multisig.
-- Relayer account can confirm payment intents but should not be a user wallet.
 - Production public network must use real custody and monitoring.
 
 ---
@@ -1350,8 +1189,7 @@ The README details above are tied to the current code paths:
 | Cloud backup encryption | `App/src/services/cloudWalletBackup.ts` uses `CLOUD_BACKUP_KDF_ITERATIONS = 60000`, `pbkdf2-sha256`, `xchacha20-poly1305`, random salt, random nonce, and Supabase `wallet_backups`. |
 | Recovery password rules | `App/src/services/cloudWalletBackup.ts` checks length, uppercase, number, and special-character rules; `CloudBackupSetupScreen` shows them inline. |
 | Restore after data loss | `App/src/screens/RestoreWalletScreen.tsx` restores the encrypted cloud backup, asks for a new local PIN, and recreates the local wallet. |
-| Merchant restore | `App/src/services/merchant.ts` calls `get_own_merchant_by_wallet`; merchant dashboard/QR/transactions reload merchant state by restored wallet address. |
-| Supabase schema | `App/supabase_schema.sql` defines `email`, `auth_user_id`, `wallet_backups`, `add_money_claims`, RLS policies, and merchant recovery RPCs. |
+| Supabase schema | `App/supabase_schema.sql` defines `email`, `auth_user_id`, `wallet_backups`, `add_money_claims`, RLS policies, and service-role-only transaction write policies. |
 | Relayer auth and persistence | `relayer-service/server.js` verifies Supabase bearer tokens and persists Add Money claims through Supabase REST when service-role env is configured. |
 | Production APK/iOS build config | `App/eas.json` production profile builds Android APK and iOS device artifacts; `App/package.json` exposes production build scripts. |
 | Media permission fix | `App/app.json` configures `expo-media-library` with `granularPermissions: ["photo"]`. |
@@ -1378,8 +1216,6 @@ cd Blockchain
 npm test
 npm run create:keypairs
 npm run setup:testnet
-npm run contract:build
-npm run deploy:contract
 ```
 
 ### Relayer
@@ -1421,42 +1257,6 @@ http://192.168.1.100:3000/health
 ---
 
 ## 🩺 Troubleshooting
-
-<details open>
-<summary><b>Stellar CLI says: Failed to find config identity for cpay-deployer</b></summary>
-
-Create and fund the CLI identity:
-
-```bash
-stellar keys generate cpay-deployer --fund
-```
-
-Then rerun:
-
-```bash
-cd Blockchain
-npm run deploy:contract
-```
-
-</details>
-
-<details open>
-<summary><b>Deploy says optimized wasm file does not exist</b></summary>
-
-The deploy script checks both:
-
-- `target/stellar/cpay_payments.optimized.wasm`
-- `target/stellar/cpay_payments.wasm`
-
-Rebuild from the latest code:
-
-```bash
-cd Blockchain
-npm run contract:build
-npm run deploy:contract
-```
-
-</details>
 
 <details open>
 <summary><b>Browser shows Cannot GET</b></summary>
@@ -1551,7 +1351,7 @@ AsyncStorage and SecureStore are local app data. Clearing app data removes the l
 - Verify the same email with Supabase OTP.
 - Enter the recovery password created on `CloudBackupSetupScreen`.
 - Create a new local 6-digit PIN.
-- The app restores the Stellar wallet, then reloads profile and merchant rows from Supabase.
+- The app restores the Stellar wallet, then reloads the profile row from Supabase.
 
 If the recovery password was never created or is lost, the cloud backup cannot be decrypted because the password is not stored by the app or Supabase.
 
@@ -1608,12 +1408,11 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 - Use `SUPABASE_JWT_SECRET` only when your Supabase project still uses legacy HS256 JWT verification.
 - Keep `ENABLE_ADD_MONEY=false` on public network unless you have a real abuse-resistant funding policy.
 - Monitor sponsor XLM and distribution CPINR.
-- Keep issuer/admin secrets offline or protected by multisig.
+- Keep issuer secrets offline or protected by multisig.
 - Apply `App/supabase_schema.sql` after this update to replace the old permissive Supabase RLS policies with user-scoped policies and limited lookup RPCs.
 - Keep phone OTP disabled until an SMS provider such as Twilio is configured; email OTP is the current production-pilot path.
 - Store and rotate EAS build env values in EAS/project secrets when moving beyond internal testing.
-- Use a reliable public-network Horizon/Soroban RPC provider for production.
-- Update README, `.env` files, app config, and EAS env after redeploying contracts.
+- Use a reliable public-network Horizon provider for production.
 
 ---
 
@@ -1628,15 +1427,11 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 - ✅ Sponsored account and trustline setup
 - ✅ Add Money through relayer distribution account
 - ✅ Fee-bump payment submission
-- ✅ Merchant screens and QR flows
-- ✅ Merchant profile restore after wallet recovery
-- ✅ Soroban payment-intent contract deployment
+- ❌ Merchant screens and QR flows — **removed**, see [Merchant Features](#-merchant-features--removed)
 
-### Phase 2 - Backend Contract Integration
+### Phase 2 - Backend Expansion
 
-- ✅ Backend API for contract-backed merchant payment intents
-- ✅ Merchant registration sync to Soroban
-- ✅ Relayer confirmation of contract intents after Stellar payment submission
+- ✅ Relayer transaction status & fee-bump management
 - ⏳ Better relayer inventory dashboard
 
 ### Phase 3 - Production Readiness
@@ -1655,9 +1450,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, PR expectations, UX gu
 
 1. Keep mobile app secrets out of `App/.env`.
 2. Keep Stellar `S...` secret seeds out of committed docs and source.
-3. Update `Blockchain/contract-ids.json` after contract redeployments.
-4. Update this README whenever network, issuer, contract, or relayer details change.
-5. Run the relevant checks before sharing a build.
+3. Update this README whenever network, issuer, or relayer details change.
+4. Run the relevant checks before sharing a build.
 
 ---
 
@@ -1665,6 +1459,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, PR expectations, UX gu
 
 **C-Pay: UPI-like payments on Stellar**
 
-Made for simple CPINR payments, sponsored setup, QR flows, and merchant-ready Stellar UX.
+Made for simple CPINR payments, sponsored setup, and QR flows on Stellar testnet.
 
 </div>

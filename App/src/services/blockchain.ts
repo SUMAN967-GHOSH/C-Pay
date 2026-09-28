@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as StellarSdk from '@stellar/stellar-base';
 import { StellarWallet } from './wallet';
 import { supabase } from './supabase';
+import { generateIdempotencyKey } from '../hooks/usePaymentIntent';
 
 const getEnvVar = (key: string, fallback: string = ''): string => {
   const processEnv = process.env[key];
@@ -55,16 +56,16 @@ const CPINR_ASSET_CODE = getEnvVar('EXPO_PUBLIC_CPINR_ASSET_CODE', 'CPINR');
 const CPINR_ASSET_ISSUER = getEnvVar('EXPO_PUBLIC_CPINR_ASSET_ISSUER', '');
 const RELAYER_URL = resolveRelayerUrl();
 const BASE_FEE = getEnvVar('EXPO_PUBLIC_STELLAR_BASE_FEE', StellarSdk.BASE_FEE);
-const RELAYER_TIMEOUT_MS = 12000;
+const RELAYER_TIMEOUT_MS = 60000;
 const ACCOUNT_READY_TIMEOUT_MS = 15000;
 const ACCOUNT_READY_POLL_MS = 1500;
-const CONTRACT_INTENT_TIMEOUT_MS = 25000;
+const CONTRACT_INTENT_TIMEOUT_MS = 60000;
 
 export type TransactionStatus = 'pending' | 'success' | 'failed' | 'unknown';
 
 export type PaymentOptions = {
-  merchantId?: string | null;
   note?: string;
+  idempotencyKey?: string;
 };
 
 type HorizonBalance = {
@@ -235,14 +236,19 @@ export function formatTimeRemaining(seconds: number): string {
   return `${remainingSeconds}s`;
 }
 
-export async function requestAddMoney(wallet: StellarWallet): Promise<string> {
+export async function requestAddMoney(
+  wallet: StellarWallet,
+  idempotencyKey?: string
+): Promise<string> {
   await ensureAccountReady(wallet);
+
+  const key = idempotencyKey || generateIdempotencyKey();
 
   const result = await relayerRequest<{ hash: string }>('/add-money', {
     method: 'POST',
     body: JSON.stringify({
       accountId: wallet.publicKey,
-      idempotencyKey: `add-money-${wallet.publicKey}-${Date.now()}`,
+      idempotencyKey: key,
     }),
   });
 
@@ -270,14 +276,6 @@ export async function sendPayment(
 
   const normalizedAmount = normalizeAmount(amount);
   await ensureAccountReady(wallet);
-  const intentId = options.merchantId
-    ? await createPaymentIntent(wallet, {
-      merchantId: options.merchantId,
-      merchantAddress: destination,
-      amount: normalizedAmount,
-      note: options.note,
-    })
-    : '';
 
   const horizonAccount = await loadHorizonAccount(wallet.publicKey);
   const sourceAccount = new StellarSdk.Account(wallet.publicKey, horizonAccount.sequence);
@@ -295,71 +293,17 @@ export async function sendPayment(
 
   transaction.sign(wallet.keypair);
 
+  const idempotencyKey = options.idempotencyKey || generateIdempotencyKey();
+
   const result = await relayerRequest<{ hash: string }>('/payments/submit', {
     method: 'POST',
     body: JSON.stringify({
       signedXdr: transaction.toXDR(),
-      idempotencyKey: `payment-${wallet.publicKey}-${destination}-${normalizedAmount}-${Date.now()}`,
-      ...(intentId ? { intentId } : {}),
+      idempotencyKey,
     }),
   }, CONTRACT_INTENT_TIMEOUT_MS);
 
   return result.hash;
-}
-
-export async function registerContractMerchant(
-  merchantId: string,
-  walletAddress: string
-): Promise<{
-  status: string;
-  contractStatus?: string;
-  contractMerchantKey?: string;
-  contractTxHash?: string;
-}> {
-  return relayerRequest('/contract/merchants/register', {
-    method: 'POST',
-    body: JSON.stringify({
-      merchantId,
-      walletAddress,
-    }),
-  }, CONTRACT_INTENT_TIMEOUT_MS);
-}
-
-async function createPaymentIntent(
-  wallet: StellarWallet,
-  params: {
-    merchantId: string;
-    merchantAddress: string;
-    amount: string;
-    note?: string;
-  }
-): Promise<string> {
-  const prepared = await relayerRequest<{
-    intentId: string;
-    xdr: string;
-    networkPassphrase: string;
-  }>('/payments/intents/prepare', {
-    method: 'POST',
-    body: JSON.stringify({
-      payer: wallet.publicKey,
-      merchantId: params.merchantId,
-      merchantAddress: params.merchantAddress,
-      amount: params.amount,
-      note: params.note || '',
-    }),
-  }, CONTRACT_INTENT_TIMEOUT_MS);
-
-  const signedXdr = wallet.signXdr(prepared.xdr, prepared.networkPassphrase || NETWORK_PASSPHRASE);
-
-  await relayerRequest('/payments/intents/submit', {
-    method: 'POST',
-    body: JSON.stringify({
-      intentId: prepared.intentId,
-      signedXdr,
-    }),
-  }, CONTRACT_INTENT_TIMEOUT_MS);
-
-  return prepared.intentId;
 }
 
 export async function getTransactionReceipt(txHash: string) {
@@ -496,52 +440,83 @@ async function relayerRequest<T = any>(
     });
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  const optionHeaders = (options.headers || {}) as Record<string, string>;
 
-  let response: Response;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...optionHeaders,
+  };
 
-  try {
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
-    const optionHeaders = (options.headers || {}) as Record<string, string>;
+  let attempt = 0;
+  const maxAttempts = 3;
 
-    response = await fetch(`${RELAYER_URL}${path}`, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...optionHeaders,
-      },
-    });
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
-      throw new RelayerRequestError('Payment service is taking too long to respond. Please try again.', {
-        code: 'RELAYER_TIMEOUT',
+  while (attempt < maxAttempts) {
+    attempt++;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response: Response;
+    let body: any = {};
+
+    try {
+      response = await fetch(`${RELAYER_URL}${path}`, {
+        ...options,
+        signal: controller.signal,
+        headers,
       });
+
+      body = await response.json().catch(() => ({})) as RelayerErrorBody;
+
+      if (!response.ok) {
+        // Retry on cold-start-shaped failures (502, 503, 504)
+        if ([502, 503, 504].includes(response.status) && attempt < maxAttempts) {
+          await delay(2000 * attempt); // Backoff: 2s, 4s...
+          continue;
+        }
+
+        throw new RelayerRequestError(body.error || 'Payment service unavailable', {
+          status: response.status,
+          code: body.code,
+          retryAfterSeconds: normalizeRetryAfterSeconds(body.retryAfterSeconds),
+          details: body,
+        });
+      }
+
+      return body as T;
+    } catch (error: any) {
+      clearTimeout(timeout);
+
+      // If it's a timeout or network error, maybe retry if we haven't exhausted attempts
+      const isAbort = error?.name === 'AbortError';
+      if (attempt < maxAttempts) {
+        await delay(2000 * attempt);
+        continue;
+      }
+
+      if (isAbort) {
+        throw new RelayerRequestError('Payment service is taking too long to respond. Please try again.', {
+          code: 'RELAYER_TIMEOUT',
+        });
+      }
+
+      // If it was already thrown by us, rethrow
+      if (error instanceof RelayerRequestError) {
+        throw error;
+      }
+
+      throw new RelayerRequestError(
+        `Payment service is not reachable. Check your internet connection and relayer URL (${RELAYER_URL}).`,
+        { code: 'RELAYER_UNREACHABLE' }
+      );
+    } finally {
+      clearTimeout(timeout);
     }
-
-    throw new RelayerRequestError(
-      `Payment service is not reachable. Check your internet connection and relayer URL (${RELAYER_URL}).`,
-      { code: 'RELAYER_UNREACHABLE' }
-    );
-  } finally {
-    clearTimeout(timeout);
   }
 
-  const body = await response.json().catch(() => ({})) as RelayerErrorBody;
-
-  if (!response.ok) {
-    throw new RelayerRequestError(body.error || 'Payment service unavailable', {
-      status: response.status,
-      code: body.code,
-      retryAfterSeconds: normalizeRetryAfterSeconds(body.retryAfterSeconds),
-      details: body,
-    });
-  }
-
-  return body as T;
+  throw new RelayerRequestError('Payment service failed after multiple attempts.');
 }
 
 function normalizeRetryAfterSeconds(value: unknown): number {

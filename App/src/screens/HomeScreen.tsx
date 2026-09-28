@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { requestAddMoney, getBalance, getTimeUntilNextAddMoney, formatTimeRemaining } from '../services/blockchain';
+import { requestAddMoney, getBalance, getTimeUntilNextAddMoney, formatTimeRemaining, isValidAccountId } from '../services/blockchain';
 import { startTransactionPolling, stopTransactionPolling } from '../services/transactionMonitor';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { getTransactions, saveTransaction, Transaction, storageEvents } from '../services/storage';
@@ -19,6 +19,7 @@ import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
 import { MONEY_BALANCE_LABEL, MONEY_SYMBOL, formatMoneyAmount } from '../utils/currency';
 import { PILOT_NOTICE_TEXT, PILOT_NOTICE_TITLE } from '../utils/pilot';
+import { usePaymentIntent } from '../hooks/usePaymentIntent';
 import {
   LoadingSpinner,
   TransactionItem,
@@ -164,6 +165,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [addMoneyMessage, setAddMoneyMessage] = useState('');
   const [addMoneyTxHash, setAddMoneyTxHash] = useState('');
   const [addMoneyRetryAfterSeconds, setAddMoneyRetryAfterSeconds] = useState(0);
+  const {
+    idempotencyKey: addMoneyIntentKey,
+    getOrCreateIntent: getOrCreateAddMoneyIntent,
+    clearIntent: clearAddMoneyIntent,
+  } = usePaymentIntent();
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
   const isAddMoneyBusy = ['checking', 'authenticating', 'processing'].includes(addMoneyPhase);
@@ -222,9 +228,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     
     const setupRealtimeSubscription = async () => {
       if (!walletAddress) return;
+
+      // Guard against filter-injection: validate the wallet address before
+      // interpolating it into the PostgREST realtime filter string.
+      // supabase-js realtime only accepts filter as a raw string, so strict
+      // call-boundary validation is the correct mitigation here.
+      // isValidAccountId uses the Stellar SDK's Ed25519 public-key checker,
+      // which rejects anything that isn't a well-formed G-account address.
+      if (!isValidAccountId(walletAddress)) {
+        console.warn('Skipping realtime subscription: wallet address failed validation', walletAddress);
+        return;
+      }
       
       console.log('🔔 Setting up Supabase real-time subscription for:', walletAddress);
       
+      // walletAddress is a validated Stellar Ed25519 public key (56-char base32
+      // starting with "G"), so interpolation here cannot carry filter syntax.
       supabaseSubscription = supabase
         .channel('transactions')
         .on(
@@ -333,9 +352,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setAddMoneyRetryAfterSeconds(retryAfterSeconds);
       setAddMoneyMessage('');
       setAddMoneyPhase('cooldown');
+      clearAddMoneyIntent();
       return;
     }
 
+    getOrCreateAddMoneyIntent();
     setAddMoneyMessage(`Claim ${formatMoneyAmount(Number(ADD_MONEY_DISPLAY_AMOUNT))} for your pilot wallet. One claim is available every 24 hours.`);
     setAddMoneyPhase('confirm');
   };
@@ -346,6 +367,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setAddMoneyMessage('');
       setAddMoneyTxHash('');
       setAddMoneyRetryAfterSeconds(0);
+      clearAddMoneyIntent();
     }
   };
 
@@ -353,6 +375,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     if (!walletAddress || isAddMoneyBusy) return;
 
     try {
+      const activeIntentKey = getOrCreateAddMoneyIntent();
       setAddMoneyTxHash('');
       setAddMoneyRetryAfterSeconds(0);
       setAddMoneyMessage('Confirm with PIN or biometrics to continue...');
@@ -374,6 +397,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       if (wallet.publicKey !== walletAddress) {
         setAddMoneyMessage('This device wallet does not match the active profile. Please sign in again before claiming pilot credits.');
         setAddMoneyPhase('error');
+        clearAddMoneyIntent();
         return;
       }
 
@@ -381,7 +405,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setAddMoneyPhase('processing');
       await waitForUiPaint();
 
-      const txHash = await requestAddMoney(wallet);
+      const txHash = await requestAddMoney(wallet, activeIntentKey);
       setAddMoneyTxHash(txHash);
 
       await saveTransaction({
@@ -395,6 +419,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         recipient_name: 'Your wallet',
         note: 'Pilot credits added',
       });
+
+      // Terminal state: clear intent
+      clearAddMoneyIntent();
 
       void loadTransactions();
       void loadBalance(walletAddress);
@@ -410,6 +437,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         setAddMoneyRetryAfterSeconds(retryAfterSeconds);
         setAddMoneyMessage('');
         setAddMoneyPhase('cooldown');
+        clearAddMoneyIntent();
         return;
       }
 
