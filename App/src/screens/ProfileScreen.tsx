@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
 import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
+import { InitialAvatar } from '../components/InitialAvatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
@@ -297,10 +298,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       {/* Identity */}
       <View style={styles.profileHeader}>
         <TouchableOpacity style={styles.profilePhotoContainer} onPress={handlePickImage}>
-          <Image
-            source={profilePhoto ? { uri: profilePhoto } : require('../../assets/default-profile-image-cryptopay.png')}
-            style={styles.profilePhoto}
-          />
+          {profilePhoto ? <Image source={{ uri: profilePhoto }} style={styles.profilePhoto} /> : <InitialAvatar name={displayName || 'User'} id={walletAddress} size={100} style={styles.profilePhoto} />}
           <View style={styles.editIconContainer}>
             <Ionicons name="camera-outline" size={15} color={COLORS.primary} />
           </View>
@@ -329,10 +327,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <ViewShot ref={qrCodeRef} options={{ format: 'png', quality: 1.0 }}>
                 <View style={styles.shareableQRCard}>
                   <View style={styles.shareCardProfile}>
-                    <Image
-                      source={profilePhoto ? { uri: profilePhoto } : require('../../assets/default-profile-image-cryptopay.png')}
-                      style={styles.shareCardProfilePhoto}
-                    />
+                    {profilePhoto ? <Image source={{ uri: profilePhoto }} style={styles.shareCardProfilePhoto} /> : <InitialAvatar name={displayName || 'User'} id={walletAddress} size={70} style={styles.shareCardProfilePhoto} />}
                     {!!displayName && <Text style={styles.shareCardName}>{displayName}</Text>}
                     <Text style={styles.shareCardAddress}>{cpayId || formatWalletFingerprint(walletAddress)}</Text>
                   </View>
