@@ -98,7 +98,7 @@ _No crypto knowledge required_
 ✅ 6-digit PIN and optional biometric unlock<br>
 ✅ Encrypted cloud wallet recovery after reinstall/cache loss<br>
 ✅ Sponsored Stellar account setup<br>
-✅ Relayer handles fees and Add Money<br>
+✅ Relayer handles sponsored Stellar fees<br>
 ✅ C-Pay IDs and QR codes<br>
 ✅ UPI-like payment experience
 
@@ -116,7 +116,7 @@ relayer flows using pilot credits that have **no cash value**.
 | User verification | Email OTP through Supabase for onboarding and account recovery |
 | User KYC | Not required — pilot credits have no cash value |
 | Receive money | Users can receive pilot credits through wallet address, C-Pay ID, and QR flows |
-| Add Money | Closed-pilot claim flow adds test credits for demo and testing |
+| Add Money | Not available. A licensed on-ramp partner is required |
 | Withdrawals | **Not implemented.** See the withdrawal note below |
 | Limits and risk | Basic app-side limits for pilot payments |
 
@@ -787,7 +787,7 @@ TRUSTLINE_LIMIT=1000000000
 FEE_BUMP_MULTIPLIER=10
 TRANSACTION_TIMEOUT_SECONDS=60
 
-ENABLE_ADD_MONEY=true
+ENABLE_TESTNET_FAUCET=false
 ADD_MONEY_AMOUNT=100
 MAX_ADD_MONEY_AMOUNT=1000
 ADD_MONEY_COOLDOWN_MS=86400000
@@ -925,7 +925,7 @@ npx expo start --clear
 | `TRUSTLINE_LIMIT` | Yes | USDC trustline limit |
 | `FEE_BUMP_MULTIPLIER` | Yes | Fee-bump max fee multiplier |
 | `TRANSACTION_TIMEOUT_SECONDS` | Yes | Stellar transaction timeout |
-| `ENABLE_ADD_MONEY` | No | Defaults to enabled on testnet and disabled on public |
+| `ENABLE_TESTNET_FAUCET` | No | Legacy testnet-only faucet; defaults to `false` and cannot run on public network |
 | `ADD_MONEY_AMOUNT` | Yes | Default Add Money amount |
 | `MAX_ADD_MONEY_AMOUNT` | Yes | Maximum Add Money API amount |
 | `ADD_MONEY_COOLDOWN_MS` | Yes | Per-account Add Money cooldown |

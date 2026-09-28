@@ -594,27 +594,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionCard, addMoneyPhase !== 'idle' && styles.actionCardDisabled]}
-          onPress={handleAddMoney}
-          activeOpacity={0.8}
-          disabled={addMoneyPhase !== 'idle'}
-          accessibilityRole="button"
-          accessibilityLabel="Claim pilot credits"
-          accessibilityHint="Claim your daily pilot credit allowance"
-          accessibilityState={{ disabled: addMoneyPhase !== 'idle', busy: isAddMoneyBusy }}
+        <View
+          style={[styles.actionCard, styles.actionCardDisabled]}
+          accessibilityRole="text"
+          accessibilityLabel="Add money coming soon through a licensed partner"
         >
           <View
             style={[styles.actionIconContainer, { backgroundColor: COLORS.success + '20' }]}
             accessibilityElementsHidden
             importantForAccessibility="no"
           >
-            <Ionicons name="add-circle-outline" size={24} color={COLORS.success} />
+            <Ionicons name="add-circle-outline" size={24} color={COLORS.textMuted} />
           </View>
           <Text style={styles.actionTitle} importantForAccessibility="no-hide-descendants">
-            Claim Credits
+            Add Money
           </Text>
-        </TouchableOpacity>
+          <Text style={styles.actionSubtitle}>Licensed partner coming soon</Text>
+        </View>
 
         <TouchableOpacity
           style={styles.actionCard}
@@ -787,6 +783,12 @@ const styles = createThemedStyles((COLORS) => ({
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
     color: COLORS.text,
+    textAlign: 'center',
+  },
+  actionSubtitle: {
+    marginTop: 2,
+    fontSize: 9,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   transactionsList: {
