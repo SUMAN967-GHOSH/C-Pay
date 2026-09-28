@@ -1,21 +1,13 @@
 import { Logger } from '../utils/logger';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';https://github.com/soumen0818/C-Pay/pull/128/conflict?name=App%252Fsrc%252Fscreens%252FSendMoneyScreen.tsx&ancestor_oid=96c7402b54c01bea4a82546e1c039d7102a63f62&base_oid=694dce9175e6b362c17559bb1b6462d396d6c505&head_oid=71d6fb69707e9fa05155138c0516f19427fa3b51
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Switch,
-  Image,
-  Platform,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as ImagePicker from 'expo-image-picker';
-import * as MediaLibrary from 'expo-media-library';
-import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import QRCode from 'react-native-qrcode-svg';
-import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import { InitialAvatar } from '../components/InitialAvatar';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,11 +15,10 @@ import { supabase } from '../services/supabase';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { Screen, Section, ActionRow } from '../components';
 import { AlertManager } from '../utils/alert';
-import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
-import { getMediaLibraryDownloadErrorMessage, requestPhotoSavePermission } from '../utils/mediaLibrary';
 import { clearSessionPin } from '../services/wallet';
-import { generatePaymentQR } from '../utils/qrCode';
-
+import { useProfileData } from '../hooks/useProfileData';
+import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { ProfileQRCode } from '../components/profile/ProfileQRCode';
 interface ProfileScreenProps {
   navigation: any;
 }
@@ -475,58 +466,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 };
 
 const styles = createThemedStyles((COLORS) => ({
-  profileHeader: {
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
-    paddingVertical: SPACING.lg,
-  },
-  profilePhotoContainer: {
-    position: 'relative',
-    marginBottom: SPACING.md,
-  },
-  profilePhoto: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: COLORS.primary,
-  },
-  editIconContainer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: COLORS.surface,
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.background,
-  },
-  profileName: {
-    fontSize: FONT_SIZES.xxl,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.md,
-    ...SHADOWS.sm,
-  },
-  profileAddress: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textMuted,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
   section: {
     marginBottom: SPACING.xl,
   },
@@ -545,119 +484,6 @@ const styles = createThemedStyles((COLORS) => ({
     height: StyleSheet.hairlineWidth,
     backgroundColor: COLORS.border,
     marginHorizontal: SPACING.sm,
-  },
-  qrCodeCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    ...SHADOWS.md,
-  },
-  qrCodeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  qrCodeHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  qrCodeIcon: {
-    marginRight: SPACING.sm,
-  },
-  qrCodeTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  qrCodeContent: {
-    alignItems: 'center',
-    marginTop: SPACING.lg,
-  },
-  shareableQRCard: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.xl,
-    borderRadius: BORDER_RADIUS.lg,
-    alignItems: 'center',
-    width: 320,
-  },
-  shareCardProfile: {
-    alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  shareCardProfilePhoto: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    marginBottom: SPACING.sm,
-  },
-  shareCardName: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  shareCardAddress: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textMuted,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  shareCardFooter: {
-    marginTop: SPACING.lg,
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  shareCardFooterText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-  },
-  qrCodeWrapper: {
-    padding: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    ...SHADOWS.md,
-  },
-  qrCodeDescription: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  qrActionButtons: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    width: '100%',
-    paddingHorizontal: SPACING.md,
-  },
-  qrActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.surface,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.xs,
-    ...SHADOWS.sm,
-  },
-  qrShareButton: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  qrActionButtonText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  shareButtonText: {
-    color: COLORS.textInverse,
   },
   signOutSection: {
     marginBottom: SPACING.xl,
