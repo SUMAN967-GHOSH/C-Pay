@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -88,7 +89,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         if (localName) setDisplayName(localName);
       }
     } catch (error) {
-      console.error('Error loading display name:', error);
+      Logger.error('Error loading display name:', error);
       const localName = await AsyncStorage.getItem('display_name');
       if (localName) setDisplayName(localName);
     }
@@ -117,7 +118,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         if (localPhoto) setProfilePhoto(localPhoto);
       }
     } catch (error) {
-      console.error('Error loading profile photo:', error);
+      Logger.error('Error loading profile photo:', error);
     }
   };
 
@@ -150,7 +151,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      Logger.error('Error picking image:', error);
       AlertManager.alert('Error', 'Failed to update profile photo', undefined, { type: 'error' });
     }
   };
@@ -192,7 +193,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         });
 
       if (uploadError) {
-        console.error('Upload error details:', uploadError);
+        Logger.error('Upload error details:', uploadError);
         return null;
       }
 
@@ -207,12 +208,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         .update({ profile_photo_url: publicUrl })
         .eq('wallet_address', address);
 
-      if (dbError) console.error('Database update error:', dbError);
+      if (dbError) Logger.error('Database update error:', dbError);
 
       await AsyncStorage.setItem('profile_photo', publicUrl);
       return publicUrl;
     } catch (error) {
-      console.error('Error uploading profile photo:', error);
+      Logger.error('Error uploading profile photo:', error);
       return null;
     }
   };
@@ -239,7 +240,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         AlertManager.alert('Not Available', 'Sharing is not available on this device');
       }
     } catch (error) {
-      console.error('Error sharing QR code:', error);
+      Logger.error('Error sharing QR code:', error);
       AlertManager.alert('Error', 'Failed to share QR code', undefined, { type: 'error' });
     }
   };
@@ -257,7 +258,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         AlertManager.alert('Saved', 'QR code saved to your gallery.', undefined, { type: 'success' });
       }
     } catch (error) {
-      console.error('Error downloading QR code:', error);
+      Logger.error('Error downloading QR code:', error);
       AlertManager.alert('Error', getMediaLibraryDownloadErrorMessage(error), undefined, { type: 'error' });
     }
   };

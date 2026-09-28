@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState } from 'react';
 import {
   View,
@@ -97,7 +98,7 @@ export const SecurityCenterScreen: React.FC<SecurityCenterScreenProps> = ({ navi
         if (!address) return;
         await supabase.from('users').update({ biometric_enabled: enabled }).eq('wallet_address', address);
       } catch (error) {
-        console.log('Failed to sync biometric preference:', error);
+        Logger.info('Failed to sync biometric preference:', error);
       }
     })();
   };
@@ -142,7 +143,7 @@ export const SecurityCenterScreen: React.FC<SecurityCenterScreenProps> = ({ navi
       }
     } catch (error) {
       setBiometricEnabled(!value);
-      console.error('Biometric setting update failed:', error);
+      Logger.error('Biometric setting update failed:', error);
       AlertManager.alert('Biometric Error', 'Could not update biometric unlock. Please try again.', undefined, { type: 'error' });
     } finally {
       biometricSavingRef.current = false;

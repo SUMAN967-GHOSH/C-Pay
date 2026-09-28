@@ -1,3 +1,4 @@
+import { Logger } from '../../utils/logger';
 /**
  * Unit tests for qrCode utility functions.
  *
@@ -16,7 +17,7 @@ jest.mock('../../services/blockchain', () => ({
     /^G[A-Z2-7]{55}$/.test(id),
 }));
 
-// Suppress expected error-path console.error messages so test output stays clean.
+// Suppress expected error-path Logger.error messages so test output stays clean.
 beforeAll(() => {
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });

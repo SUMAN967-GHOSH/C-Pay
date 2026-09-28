@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatMoneyAmount } from '../utils/currency';
 
@@ -71,7 +72,7 @@ export async function checkTransactionLimit(amount: string): Promise<{
 
     return { allowed: true };
   } catch (error) {
-    console.error('Error checking transaction limit:', error);
+// [SECURITY] Removed sensitive log: console.error('Error checking transaction limit:', error);
     return { allowed: true }; // Fail open for now
   }
 }
@@ -99,7 +100,7 @@ export async function recordTransaction(amount: string): Promise<void> {
 
     await AsyncStorage.setItem(TRANSACTION_LIMIT_KEY, JSON.stringify(limit));
   } catch (error) {
-    console.error('Error recording transaction:', error);
+// [SECURITY] Removed sensitive log: console.error('Error recording transaction:', error);
   }
 }
 
@@ -139,7 +140,7 @@ export async function checkRateLimit(action: string): Promise<{
 
     return { allowed: true };
   } catch (error) {
-    console.error('Error checking rate limit:', error);
+    Logger.error('Error checking rate limit:', error);
     return { allowed: true }; // Fail open
   }
 }
@@ -166,7 +167,7 @@ export async function recordAction(action: string): Promise<void> {
 
     await AsyncStorage.setItem(key, JSON.stringify(rateLimit));
   } catch (error) {
-    console.error('Error recording action:', error);
+    Logger.error('Error recording action:', error);
   }
 }
 
@@ -207,7 +208,7 @@ export async function getTransactionLimitsStatus(): Promise<{
       },
     };
   } catch (error) {
-    console.error('Error getting transaction limits status:', error);
+// [SECURITY] Removed sensitive log: console.error('Error getting transaction limits status:', error);
     return {
       transactionsToday: 0,
       maxTransactionsPerDay: MAX_TRANSACTIONS_PER_DAY,
@@ -233,8 +234,8 @@ export async function resetLimits(): Promise<void> {
     const rateLimitKeys = allKeys.filter(key => key.startsWith(RATE_LIMIT_KEY));
     await AsyncStorage.multiRemove(rateLimitKeys);
     
-    console.log('All limits reset');
+    Logger.info('All limits reset');
   } catch (error) {
-    console.error('Error resetting limits:', error);
+    Logger.error('Error resetting limits:', error);
   }
 }

@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -334,7 +335,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
       // Show success state
       setState('success');
     } catch (restoreError) {
-      console.error('Wallet restore error:', restoreError);
+      Logger.error('Wallet restore error:', restoreError);
       submittingRef.current = false;
       setLoading(false);
       AlertManager.alert(
