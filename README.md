@@ -190,7 +190,7 @@ C-Pay completed a closed testnet pilot with a small group of users. Feedback was
 ### Key Themes
 
 - **Withdrawal support** is the most requested feature. **Not implemented, and not planned** — it requires real-money settlement and regulatory approval this project does not have.
-- **Dark theme default** and **wallet address visibility** were requested for the home/profile screens. **Neither is implemented**; the app has no dark mode.
+- **Dark mode** now follows the device appearance setting across every app screen. The wallet-address visibility request remains open.
 - **Overall experience** was rated highly across sending, receiving, balance checks, and QR flows.
 - **Media-library permission** error was reported in Expo Go and resolved by building a development/production APK.
 

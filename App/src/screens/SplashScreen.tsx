@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hasWallet } from '../services/wallet';
-import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY, createThemedStyles, useTheme } from '../constants/theme';
 import { PILOT_NOTICE_TITLE } from '../utils/pilot';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
@@ -21,6 +21,7 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
+  useTheme();
   useEffect(() => {
     checkWalletAndNavigate();
   }, [navigation]);
@@ -76,7 +77,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   container: {
     flex: 1,
     backgroundColor: COLORS.primary,
@@ -112,4 +113,4 @@ const styles = StyleSheet.create({
     color: COLORS.card + 'AA',
     marginTop: SPACING.sm,
   },
-});
+}));

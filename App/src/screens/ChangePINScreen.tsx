@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PINInput } from '../components/PINInput';
 import { Screen } from '../components';
 import { cachePinForSession, verifyPin, changeWalletPin } from '../services/wallet';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS } from '../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, createThemedStyles, useTheme } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
@@ -21,6 +21,7 @@ interface ChangePINScreenProps {
 }
 
 export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) => {
+  useTheme();
   const [step, setStep] = useState<Step>('verify');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -205,7 +206,7 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   content: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   pinSection: {
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginBottom: SPACING.xs,
   },
   cancelButton: {
@@ -287,6 +288,6 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
-});
+}));

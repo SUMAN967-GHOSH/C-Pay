@@ -11,7 +11,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getTransactions, Transaction } from '../services/storage';
 import { pollPendingTransactions } from '../services/transactionMonitor';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { TransactionItem, LoadingSpinner, EmptyState, TransactionDetailModal, Screen, Header } from '../components';
 
 interface TransactionHistoryScreenProps {
@@ -27,6 +27,7 @@ export const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> =
   navigation,
   route,
 }) => {
+  useTheme();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -219,7 +220,7 @@ export const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> =
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,5 +240,4 @@ const styles = StyleSheet.create({
   listContent: {
     padding: SPACING.lg,
   },
-});
-
+}));

@@ -13,7 +13,7 @@ import { getBalance, isValidAccountId, transferTokens } from '../services/blockc
 import { saveTransaction, getUserDisplayName } from '../services/storage';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import {
   Button,
   Screen,
@@ -36,6 +36,7 @@ interface SendMoneyScreenProps {
 }
 
 export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, route }) => {
+  useTheme();
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [recipientAddress, setRecipientAddress] = useState<string>('');
   const [recipientInput, setRecipientInput] = useState<string>(''); // Store original input (C-Pay ID or wallet)
@@ -605,7 +606,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   field: {
     marginBottom: SPACING.xl,
   },
@@ -659,7 +660,7 @@ const styles = StyleSheet.create({
   recipientCardTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -674,7 +675,7 @@ const styles = StyleSheet.create({
   },
   recipientCardAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   changeRecipientButton: {
@@ -687,4 +688,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-});
+}));

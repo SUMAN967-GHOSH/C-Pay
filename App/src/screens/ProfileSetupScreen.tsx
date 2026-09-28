@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { Button, OnboardingProgress, FormField, InfoBanner } from '../components';
 import { AlertManager } from '../utils/alert';
 import { generateCPayId } from '../utils/cpayId';
@@ -26,6 +26,7 @@ interface ProfileSetupScreenProps {
 }
 
 export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigation, route }) => {
+  useTheme();
   const { walletAddress, phoneNumber } = route.params;
   const [fullName, setFullName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
@@ -253,7 +254,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
                 <Image source={{ uri: profilePhoto }} style={styles.photo} />
               ) : (
                 <View style={styles.photoPlaceholder}>
-                  <Ionicons name="camera-outline" size={30} color={COLORS.textSecondary} style={styles.photoPlaceholderIcon} />
+                  <Ionicons name="camera-outline" size={30} color={COLORS.textMuted} style={styles.photoPlaceholderIcon} />
                   <Text style={styles.photoPlaceholderText}>Add Photo</Text>
                 </View>
               )}
@@ -316,7 +317,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: COLORS.whiteOverlayFaint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
@@ -369,7 +370,7 @@ const styles = StyleSheet.create({
     color: COLORS.error,
   },
   optional: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontWeight: '400',
   },
   photoContainer: {
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
   },
   photoPlaceholderText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   removePhotoButton: {
@@ -416,15 +417,15 @@ const styles = StyleSheet.create({
   },
   footer: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: SPACING.lg,
     paddingHorizontal: SPACING.md,
   },
   loadingText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: SPACING.md,
   },
-});
+}));
