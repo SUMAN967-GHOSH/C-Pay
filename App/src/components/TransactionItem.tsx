@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, TYPOGRAPHY, createThemedStyles, useTheme } from '../constants/theme';
 import { formatDateShort } from '../utils/date';
-import { convertAssetToINR, formatINR } from '../utils/currency';
+import { formatMoneyAmount } from '../utils/currency';
 import { formatWalletFingerprint, getCPayIdByWallet } from '../utils/cpayId';
 import { formatTransactionHash, isValidTransactionHash } from '../services/blockchain';
 import { A11Y, TRANSACTION } from '../utils/strings';
@@ -138,8 +138,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   }, [transaction, isReceived]);
 
   const amount = parseFloat(transaction.amount);
-  const inrAmount = convertAssetToINR(amount);
-  const formattedAmount = formatINR(inrAmount);
+  const formattedAmount = formatMoneyAmount(amount);
   const directionLabel = isReceived ? 'Received from' : 'Sent to';
 
   // Compose a rich accessibility label so screen readers announce the full

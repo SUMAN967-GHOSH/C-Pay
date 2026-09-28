@@ -73,7 +73,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
   const isReceived = transaction.to_address?.toLowerCase() === currentWallet?.toLowerCase();
   const amount = parseFloat(transaction.amount);
-  const inrAmount = convertAssetToINR(amount);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -145,10 +144,10 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                   styles.amountValue,
                   { color: isMerchantView || isReceived ? COLORS.transactionIncoming : COLORS.text },
                 ]}
-                accessibilityLabel={`Amount: ${isMerchantView || isReceived ? 'received' : 'sent'} ${formatINR(inrAmount)}`}
+                accessibilityLabel={`Amount: ${isMerchantView || isReceived ? 'received' : 'sent'} ${formatMoneyAmount(amount)}`}
                 maxFontSizeMultiplier={1.3}
               >
-                {isMerchantView || isReceived ? '+' : '-'}{formatINR(inrAmount)}
+                {isMerchantView || isReceived ? '+' : '-'}{formatMoneyAmount(amount)}
               </Text>
             </View>
 
