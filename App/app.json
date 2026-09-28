@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/cpay_logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#6366f1"
+      "backgroundColor": "#2563EB"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/cpay_logo.png",
-        "backgroundColor": "#6366f1"
+        "backgroundColor": "#2563EB"
       },
       "package": "com.cryptopay.app",
       "versionCode": 5,
