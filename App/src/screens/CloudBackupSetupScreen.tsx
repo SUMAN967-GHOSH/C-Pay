@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -96,7 +97,7 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
         navigation.replace('BiometricSetup');
       }
     } catch (backupError: any) {
-      console.error('Cloud backup setup error:', backupError);
+      Logger.error('Cloud backup setup error:', backupError);
       submittingRef.current = false;
       setError(backupError?.message || 'Cloud backup could not be saved. Please try again.');
       setLoading(false);

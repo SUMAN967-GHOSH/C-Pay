@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -213,7 +214,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     
     // Listen for new transactions (real-time updates within same app)
     const transactionListener = (transaction: Transaction) => {
-      console.log('📡 Received new transaction event, refreshing list...');
+// [SECURITY] Removed sensitive log: console.log('📡 Received new transaction event, refreshing list...');
       loadTransactions();
       // Also refresh balance
       if (walletAddress) {
@@ -222,7 +223,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     };
     
     storageEvents.on('transactionSaved', transactionListener);
-    console.log('🎯 Subscribed to transactionSaved events');
+// [SECURITY] Removed sensitive log: console.log('🎯 Subscribed to transactionSaved events');
     
     // Setup Supabase real-time subscription for incoming transactions (for receivers)
     let supabaseSubscription: any = null;
@@ -237,11 +238,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // isValidAccountId uses the Stellar SDK's Ed25519 public-key checker,
       // which rejects anything that isn't a well-formed G-account address.
       if (!isValidAccountId(walletAddress)) {
-        console.warn('Skipping realtime subscription: wallet address failed validation', walletAddress);
+// [SECURITY] Removed sensitive log: console.warn('Skipping realtime subscription: wallet address failed validation', walletAddress);
         return;
       }
       
-      console.log('🔔 Setting up Supabase real-time subscription for:', walletAddress);
+      Logger.info('🔔 Setting up Supabase real-time subscription for:', walletAddress);
       
       // walletAddress is a validated Stellar Ed25519 public key (56-char base32
       // starting with "G"), so interpolation here cannot carry filter syntax.
@@ -256,7 +257,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             filter: `to_address=eq.${walletAddress}`,
           },
           (payload) => {
-            console.log('💰 New incoming transaction detected!', payload);
+// [SECURITY] Removed sensitive log: console.log('💰 New incoming transaction detected!', payload);
             loadTransactions();
             loadBalance(walletAddress);
           }
@@ -272,11 +273,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return () => {
       stopTransactionPolling();
       storageEvents.off('transactionSaved', transactionListener);
-      console.log('🚫 Unsubscribed from transactionSaved events');
+// [SECURITY] Removed sensitive log: console.log('🚫 Unsubscribed from transactionSaved events');
       
       if (supabaseSubscription) {
         supabase.removeChannel(supabaseSubscription);
-        console.log('🚫 Unsubscribed from Supabase real-time');
+        Logger.info('🚫 Unsubscribed from Supabase real-time');
       }
     };
   }, [walletAddress]);
@@ -284,7 +285,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   // Refresh transactions when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 HomeScreen focused - refreshing transactions');
+// [SECURITY] Removed sensitive log: console.log('🔄 HomeScreen focused - refreshing transactions');
       loadTransactions();
       if (walletAddress) {
         loadBalance(walletAddress);
@@ -300,7 +301,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         await loadBalance(address);
       }
     } catch (error) {
-      console.error('Error loading wallet:', error);
+      Logger.error('Error loading wallet:', error);
     } finally {
       setLoading(false);
     }
@@ -311,7 +312,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       const formatted = await getBalance(address);
       setBalance(formatted);
     } catch (error) {
-      console.error('Error loading balance:', error);
+      Logger.error('Error loading balance:', error);
       setBalance('0.00');
     }
   };
@@ -322,7 +323,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       // Get last 5 transactions
       setTransactions(txs.slice(0, 10));
     } catch (error) {
-      console.error('Error loading transactions:', error);
+// [SECURITY] Removed sensitive log: console.error('Error loading transactions:', error);
     }
   };
 
@@ -431,7 +432,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       setAddMoneyMessage(`${formatMoneyAmount(ADD_MONEY_DISPLAY_AMOUNT)} has been added. Your balance will refresh automatically.`);
       setAddMoneyPhase('success');
     } catch (error: any) {
-      console.error('Testnet USDC distribution error:', error);
+      Logger.error('Testnet USDC distribution error:', error);
 
       const retryAfterSeconds = getRetryAfterSecondsFromError(error);
       if (retryAfterSeconds > 0) {

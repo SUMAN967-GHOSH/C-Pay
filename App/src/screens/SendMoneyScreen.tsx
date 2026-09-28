@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -9,9 +10,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { getBalance, isValidAccountId, transferTokens } from '../services/blockchain';
-import { saveTransaction, getUserDisplayName } from '../services/storage';
-import { getAuthenticatedWallet } from '../utils/biometric';
+import { getBalance, isValidAccountId } from '../services/blockchain';
+import { getUserDisplayName } from '../services/storage';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import {
@@ -27,8 +27,9 @@ import {
 import { AlertManager } from '../utils/alert';
 import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount, formatMoneyBalance } from '../utils/currency';
 import { PILOT_TESTNET_TEXT } from '../utils/pilot';
-import { getPaymentFailureCopy } from '../utils/paymentFailure';
 import { usePaymentIntent } from '../hooks/usePaymentIntent';
+import { usePaymentSubmission } from '../hooks/usePaymentSubmission';
+import { useRecipientLookup } from '../hooks/useRecipientLookup';
 
 interface SendMoneyScreenProps {
   navigation: any;
@@ -38,10 +39,6 @@ interface SendMoneyScreenProps {
 export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, route }) => {
   useTheme();
   const [walletAddress, setWalletAddress] = useState<string>('');
-  const [recipientAddress, setRecipientAddress] = useState<string>('');
-  const [recipientInput, setRecipientInput] = useState<string>(''); // Store original input (C-Pay ID or wallet)
-  const [recipientName, setRecipientName] = useState<string>('');
-  const [recipientCPayId, setRecipientCPayId] = useState<string>('');
   const [amount, setAmount] = useState<string>(''); // User enters USDC, up to seven decimals.
   const [note, setNote] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -49,13 +46,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const [hideBalance, setHideBalance] = useState<boolean>(false);
   const [isFromQR, setIsFromQR] = useState<boolean>(false);
   const [hasPresetAmount, setHasPresetAmount] = useState<boolean>(false);
-  const [fetchingRecipient, setFetchingRecipient] = useState<boolean>(false);
-  const [recipientFetched, setRecipientFetched] = useState<boolean>(false);
   const [showReview, setShowReview] = useState<boolean>(false);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const paymentInProgress = useRef<boolean>(false);
-  const networkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const recipientLookupSeq = useRef<number>(0);
 
   const {
     idempotencyKey,
@@ -64,6 +55,22 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     clearIntent,
     resetIntent,
   } = usePaymentIntent(route?.params?.idempotencyKey || null);
+
+  const {
+    recipientInput,
+    setRecipientInput,
+    recipientAddress,
+    setRecipientAddress,
+    recipientName,
+    setRecipientName,
+    recipientCPayId,
+    setRecipientCPayId,
+    fetchingRecipient,
+    recipientFetched,
+    fetchRecipientName,
+    handleAddressChange,
+    resetRecipient,
+  } = useRecipientLookup(walletAddress, isFromQR);
 
   useEffect(() => {
     loadWalletData();
@@ -104,28 +111,6 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
     }
   }, [route?.params]);
 
-  // Handle back button during payment
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (paymentInProgress.current) {
-        AlertManager.alert(
-          'Transaction Cancelled',
-          'Payment was interrupted. If the transaction was submitted, it may still complete.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
-        return true; // Prevent default back behavior
-      }
-      return false; // Allow default back behavior
-    });
-
-    return () => {
-      backHandler.remove();
-      if (networkTimeoutRef.current) {
-        clearTimeout(networkTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const loadWalletData = async () => {
     try {
       const address = await AsyncStorage.getItem('wallet_address');
@@ -134,7 +119,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         await loadBalance(address);
       }
     } catch (error) {
-      console.error('Error loading wallet:', error);
+      Logger.error('Error loading wallet:', error);
     }
   };
 
@@ -143,7 +128,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       const formatted = await getBalance(address);
       setBalance(formatted);
     } catch (error) {
-      console.error('Error loading balance:', error);
+      Logger.error('Error loading balance:', error);
       setBalance('0.00');
     }
   };
@@ -195,7 +180,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         setRecipientFetched(false);
       }
     } catch (error) {
-      console.log('Error fetching recipient name:', error);
+      Logger.info('Error fetching recipient name:', error);
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
@@ -235,7 +220,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
           setRecipientFetched(false);
         }
       } catch (error) {
-        console.error('Error looking up C-Pay ID:', error);
+        Logger.error('Error looking up C-Pay ID:', error);
       } finally {
         setFetchingRecipient(false);
       }
@@ -395,8 +380,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       };
 
       saveTransaction(transactionData)
-        .then(() => console.log('✅ Transaction saved and synced'))
-        .catch(err => console.error('❌ Transaction save/sync error:', err));
+// [SECURITY] Removed sensitive log: .then(() => console.log('✅ Transaction saved and synced'))
+// [SECURITY] Removed sensitive log: .catch(err => console.error('❌ Transaction save/sync error:', err));
 
       // Navigate to Success screen
       navigation.replace('PaymentSuccess', {

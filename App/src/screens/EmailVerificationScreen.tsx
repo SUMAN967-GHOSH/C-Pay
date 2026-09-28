@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -135,7 +136,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
       .maybeSingle();
 
     if (error) {
-      console.error('Existing profile lookup failed:', error);
+      Logger.error('Existing profile lookup failed:', error);
       return null;
     }
 

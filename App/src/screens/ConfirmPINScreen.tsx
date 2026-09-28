@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useRef, useState } from 'react';
 import {
   View,
@@ -47,10 +48,10 @@ const saveInitialUserRecord = (
         );
 
       if (dbError) {
-        console.error('Database error:', dbError);
+        Logger.error('Database error:', dbError);
       }
     } catch (error) {
-      console.error('Database save failed:', error);
+      Logger.error('Database save failed:', error);
     }
   })();
 };
@@ -116,7 +117,7 @@ export const ConfirmPINScreen: React.FC<ConfirmPINScreenProps> = ({
         phoneNumber: phoneNumber || '',
       });
     } catch (err) {
-      console.error('Wallet creation error:', err);
+      Logger.error('Wallet creation error:', err);
       AlertManager.alert('Error', 'Failed to create wallet. Please try again.');
       setConfirmPin('');
       submittingRef.current = false;
