@@ -172,7 +172,7 @@ await server.submitTransaction(removeOldSignerTx);
 ### 7.2 Anomaly & Velocity Detection
 - **Signing Velocity Threshold**: Triggered if `KeyManager` exceeds 120 signatures/minute (`MAX_SIGNS_PER_MINUTE`).
 - **Unexpected Source Account Check**: Relayer enforces `requireWalletOwnership()` on every request to prevent signing for unauthorized accounts.
-- **Circuit Breaker**: If unauthorized signing velocity is detected, the relayer automatically sets `ENABLE_ADD_MONEY=false` and notifies operators.
+- **Circuit Breaker**: Keep the legacy testnet faucet disabled (`ENABLE_TESTNET_FAUCET=false`) and revoke the distribution key if unauthorized signing is detected.
 
 ---
 

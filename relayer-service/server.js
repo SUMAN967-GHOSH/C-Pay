@@ -523,7 +523,8 @@ function loadConfig() {
   const assetCode = process.env.CPINR_ASSET_CODE || 'CPINR';
   const assetIssuer = requireEnv('CPINR_ASSET_ISSUER');
   const authRequired = readBooleanEnv('RELAYER_AUTH_REQUIRED', networkName === 'public');
-  const addMoneyEnabled = readBooleanEnv('ENABLE_ADD_MONEY', networkName !== 'public');
+  // The legacy faucet is testnet-only and opt-in. It can never run on public network.
+  const addMoneyEnabled = networkName === 'testnet' && readBooleanEnv('ENABLE_TESTNET_FAUCET', false);
   const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET || '';
   const supabaseUrl = process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

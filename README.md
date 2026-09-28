@@ -98,7 +98,7 @@ _No crypto knowledge required_
 ✅ 6-digit PIN and optional biometric unlock<br>
 ✅ Encrypted cloud wallet recovery after reinstall/cache loss<br>
 ✅ Sponsored Stellar account setup<br>
-✅ Relayer handles fees and Add Money<br>
+✅ Relayer handles sponsored Stellar fees<br>
 ✅ C-Pay IDs and QR codes<br>
 ✅ UPI-like payment experience
 
@@ -116,7 +116,7 @@ relayer flows using pilot credits that have **no cash value**.
 | User verification | Email OTP through Supabase for onboarding and account recovery |
 | User KYC | Not required — pilot credits have no cash value |
 | Receive money | Users can receive pilot credits through wallet address, C-Pay ID, and QR flows |
-| Add Money | Closed-pilot claim flow adds test credits for demo and testing |
+| Add Money | Not available. A licensed on-ramp partner is required |
 | Withdrawals | **Not implemented.** See the withdrawal note below |
 | Limits and risk | Basic app-side limits for pilot payments |
 
@@ -794,7 +794,7 @@ TRUSTLINE_LIMIT=1000000000
 FEE_BUMP_MULTIPLIER=10
 TRANSACTION_TIMEOUT_SECONDS=60
 
-ENABLE_ADD_MONEY=true
+ENABLE_TESTNET_FAUCET=false
 ADD_MONEY_AMOUNT=100
 MAX_ADD_MONEY_AMOUNT=1000
 ADD_MONEY_COOLDOWN_MS=86400000
@@ -935,7 +935,7 @@ npx expo start --clear
 | `TRUSTLINE_LIMIT` | Yes | CPINR trustline limit |
 | `FEE_BUMP_MULTIPLIER` | Yes | Fee-bump max fee multiplier |
 | `TRANSACTION_TIMEOUT_SECONDS` | Yes | Stellar transaction timeout |
-| `ENABLE_ADD_MONEY` | No | Defaults to enabled on testnet and disabled on public |
+| `ENABLE_TESTNET_FAUCET` | No | Legacy testnet-only faucet; defaults to `false` and cannot run on public network |
 | `ADD_MONEY_AMOUNT` | Yes | Default Add Money amount |
 | `MAX_ADD_MONEY_AMOUNT` | Yes | Maximum Add Money API amount |
 | `ADD_MONEY_COOLDOWN_MS` | Yes | Per-account Add Money cooldown |
@@ -1406,7 +1406,7 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 - Set `RELAYER_AUTH_REQUIRED=true` for production/public-network relayer deployments.
 - Prefer `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` on the relayer for Supabase Auth API token verification and Add Money claim persistence.
 - Use `SUPABASE_JWT_SECRET` only when your Supabase project still uses legacy HS256 JWT verification.
-- Keep `ENABLE_ADD_MONEY=false` on public network unless you have a real abuse-resistant funding policy.
+- Keep `ENABLE_TESTNET_FAUCET=false`; production money-in requires a licensed partner.
 - Monitor sponsor XLM and distribution CPINR.
 - Keep issuer secrets offline or protected by multisig.
 - Apply `App/supabase_schema.sql` after this update to replace the old permissive Supabase RLS policies with user-scoped policies and limited lookup RPCs.
