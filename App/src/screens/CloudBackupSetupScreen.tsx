@@ -16,7 +16,7 @@ import {
 import { getWalletFromSession } from '../services/wallet';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { AlertManager } from '../utils/alert';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 
 type CloudBackupSetupRouteParams = {
   fromSettings?: boolean;
@@ -33,6 +33,7 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
   navigation,
   route,
 }) => {
+  useTheme();
   const fromSettings = route?.params?.fromSettings === true;
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -149,7 +150,7 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
               <Ionicons
                 name={rule.passed ? 'checkbox-outline' : 'square-outline'}
                 size={18}
-                color={rule.passed ? COLORS.success : COLORS.textSecondary}
+                color={rule.passed ? COLORS.success : COLORS.textMuted}
                 style={styles.ruleIcon}
               />
               <Text style={[styles.ruleText, rule.passed && styles.ruleTextPassed]}>
@@ -201,7 +202,7 @@ export const CloudBackupSetupScreen: React.FC<CloudBackupSetupScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: SPACING.lg,
@@ -250,7 +251,7 @@ const styles = StyleSheet.create({
   },
   ruleText: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   ruleTextPassed: {
     color: COLORS.success,
@@ -271,13 +272,13 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   footer: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 18,
     marginTop: SPACING.lg,
   },
-});
+}));

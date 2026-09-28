@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, createThemedStyles, useTheme } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +27,7 @@ export const PaymentProcessingScreen: React.FC<PaymentProcessingScreenProps> = (
   navigation,
   route,
 }) => {
+  useTheme();
   const { amount, recipientName, recipientAddress } = route.params;
   const [subtitle, setSubtitle] = React.useState('This may take a few seconds');
   
@@ -100,7 +101,7 @@ export const PaymentProcessingScreen: React.FC<PaymentProcessingScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   container: {
     flex: 1,
   },
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: COLORS.whiteOverlay,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.xxl,
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
   },
   processingSubtitle: {
     fontSize: FONT_SIZES.md,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: COLORS.textOnBrandMuted,
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: SPACING.xxl,
@@ -152,12 +153,12 @@ const styles = StyleSheet.create({
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: COLORS.whiteOverlaySubtle,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: COLORS.whiteOverlayMedium,
     gap: SPACING.sm,
   },
   warningIcon: {
@@ -168,5 +169,4 @@ const styles = StyleSheet.create({
     color: COLORS.textInverse,
     fontWeight: '600',
   },
-});
-
+}));
