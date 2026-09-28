@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -134,7 +135,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         await loadBalance(address);
       }
     } catch (error) {
-      console.error('Error loading wallet:', error);
+      Logger.error('Error loading wallet:', error);
     }
   };
 
@@ -143,7 +144,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       const formatted = await getBalance(address);
       setBalance(formatted);
     } catch (error) {
-      console.error('Error loading balance:', error);
+      Logger.error('Error loading balance:', error);
       setBalance('0.00');
     }
   };
@@ -195,7 +196,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
         setRecipientFetched(false);
       }
     } catch (error) {
-      console.log('Error fetching recipient name:', error);
+      Logger.info('Error fetching recipient name:', error);
       setRecipientName('');
       setRecipientCPayId('');
       setRecipientFetched(false);
@@ -235,7 +236,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
           setRecipientFetched(false);
         }
       } catch (error) {
-        console.error('Error looking up C-Pay ID:', error);
+        Logger.error('Error looking up C-Pay ID:', error);
       } finally {
         setFetchingRecipient(false);
       }
@@ -395,8 +396,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       };
 
       saveTransaction(transactionData)
-        .then(() => console.log('✅ Transaction saved and synced'))
-        .catch(err => console.error('❌ Transaction save/sync error:', err));
+// [SECURITY] Removed sensitive log: .then(() => console.log('✅ Transaction saved and synced'))
+// [SECURITY] Removed sensitive log: .catch(err => console.error('❌ Transaction save/sync error:', err));
 
       // Navigate to Success screen
       navigation.replace('PaymentSuccess', {

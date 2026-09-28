@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -92,11 +93,11 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
             .eq('wallet_address', walletAddress);
 
           if (error) {
-            console.log('Failed to update Supabase, continuing...', error);
+            Logger.info('Failed to update Supabase, continuing...', error);
           }
         }
       } catch (dbError) {
-        console.log('Failed to update Supabase, continuing...', dbError);
+        Logger.info('Failed to update Supabase, continuing...', dbError);
       }
     })();
   };
@@ -125,7 +126,7 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({
         setLoading(false);
       }
     } catch (error) {
-      console.error('Biometric authentication error:', error);
+// [SECURITY] Removed sensitive log: console.error('Biometric authentication error:', error);
       setLoading(false);
     }
   };

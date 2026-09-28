@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import { supabase } from './supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearSessionPin } from './wallet';
@@ -76,7 +77,7 @@ export async function getSessionSwapBlockReason(email: string): Promise<string |
 
     if (error) {
       // Fail closed: we could not prove the backup is safe, so do not risk it.
-      console.error('Wallet backup guard lookup failed:', error);
+      Logger.error('Wallet backup guard lookup failed:', error);
       return 'Could not confirm your wallet backup is safe, so this verification was stopped. Check your connection and try again.';
     }
 
@@ -91,7 +92,7 @@ export async function getSessionSwapBlockReason(email: string): Promise<string |
       `Sign out and restore your wallet first if you really want to use a different email.`
     );
   } catch (error: any) {
-    console.error('Wallet backup guard error:', error);
+    Logger.error('Wallet backup guard error:', error);
     return 'Could not confirm your wallet backup is safe, so this verification was stopped. Please try again.';
   }
 }
@@ -135,7 +136,7 @@ async function checkRateLimit(): Promise<{
       remainingAttempts: MAX_OTP_ATTEMPTS_PER_DAY - rateLimit.attempts,
     };
   } catch (error) {
-    console.error('Error checking rate limit:', error);
+    Logger.error('Error checking rate limit:', error);
     return { allowed: true, remainingAttempts: MAX_OTP_ATTEMPTS_PER_DAY };
   }
 }
@@ -171,7 +172,7 @@ async function incrementAttempt(): Promise<void> {
 
     await AsyncStorage.setItem(OTP_RATE_LIMIT_KEY, JSON.stringify(rateLimit));
   } catch (error) {
-    console.error('Error incrementing attempt:', error);
+    Logger.error('Error incrementing attempt:', error);
   }
 }
 
@@ -230,7 +231,7 @@ export async function sendLoginEmailOTP(email: string): Promise<{
       remainingAttempts: rateLimitCheck.remainingAttempts - 1,
     };
   } catch (error: any) {
-    console.error('Send login email OTP error:', error);
+    Logger.error('Send login email OTP error:', error);
     return {
       success: false,
       error: error.message || 'Failed to send email OTP',
@@ -275,7 +276,7 @@ export async function verifyLoginEmailOTP(
       email: data.user?.email || verificationId,
     };
   } catch (error: any) {
-    console.error('Verify login email OTP error:', error);
+    Logger.error('Verify login email OTP error:', error);
     return {
       success: false,
       error: error.message || 'Invalid email OTP code',
@@ -368,7 +369,7 @@ export async function sendMerchantContactOtp(
 
     return { success: true };
   } catch (error: any) {
-    console.error('sendMerchantContactOtp error:', error);
+    Logger.error('sendMerchantContactOtp error:', error);
     return { success: false, error: error.message || 'Failed to send verification code' };
   }
 }
@@ -412,7 +413,7 @@ export async function verifyMerchantContactOtp(
 
     return { success: true, verificationStatus: body?.verificationStatus };
   } catch (error: any) {
-    console.error('verifyMerchantContactOtp error:', error);
+    Logger.error('verifyMerchantContactOtp error:', error);
     return { success: false, error: error.message || 'Failed to verify code' };
   }
 }

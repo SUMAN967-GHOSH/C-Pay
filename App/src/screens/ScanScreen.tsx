@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -264,7 +265,7 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => 
         hideBalance: route?.params?.returnTo !== 'SendMoney',
       });
     } catch (error) {
-      console.error('Error processing QR code:', error);
+      Logger.error('Error processing QR code:', error);
       setLoading(false);
       setVerifying(false);
       AlertManager.alert('Error', 'Failed to process QR code. Please try again.', [
@@ -304,7 +305,7 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({ navigation, route }) => 
         });
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      Logger.error('Error picking image:', error);
       setLoading(false);
       AlertManager.alert('Error', 'Failed to scan QR code from this image.', [
         { text: 'Try Again', onPress: resetScan },

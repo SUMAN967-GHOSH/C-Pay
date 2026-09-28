@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useEffect } from 'react';
 import {
   View,
@@ -33,7 +34,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
       
       // Check if user has already created wallet
       const walletExists = await hasWallet();
-      console.log('Wallet exists:', walletExists);
+      Logger.info('Wallet exists:', walletExists);
       
       if (walletExists) {
         const phoneVerified = await AsyncStorage.getItem('phone_number');
@@ -52,7 +53,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
         navigation.replace('Onboarding');
       }
     } catch (error) {
-      console.error('Error checking wallet:', error);
+      Logger.error('Error checking wallet:', error);
       // On error, assume new user
       navigation.replace('Onboarding');
     }
