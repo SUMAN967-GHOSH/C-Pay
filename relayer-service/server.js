@@ -23,13 +23,18 @@ const NETWORKS = {
   },
 };
 
+const USDC_ISSUERS = {
+  testnet: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  public: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+};
+
 const config = loadConfig();
 const server = new StellarSdk.Horizon.Server(config.horizonUrl, {
   allowHttp: config.horizonUrl.startsWith('http://'),
 });
 const sponsorKeypair = StellarSdk.Keypair.fromSecret(config.sponsorSecret);
 const distributionKeypair = StellarSdk.Keypair.fromSecret(config.distributionSecret);
-const cpinrAsset = new StellarSdk.Asset(config.assetCode, config.assetIssuer);
+const usdcAsset = new StellarSdk.Asset(config.assetCode, config.assetIssuer);
 
 const { IngestWorker } = require('./ingestWorker');
 const ingestWorker = new IngestWorker({
@@ -113,7 +118,7 @@ app.get('/health/detailed', requireAuthenticatedUser, async (_req, res) => {
     sponsorPublicKey: sponsorKeypair.publicKey(),
     distributionPublicKey: distributionKeypair.publicKey(),
     sponsorXlmBalance: sponsorBalances.xlm,
-    distributionCpinrBalance: distributionBalances.asset,
+    distributionUsdcBalance: distributionBalances.asset,
     authRequired: config.authRequired,
     authApiConfigured: Boolean(config.supabaseUrl && config.supabaseServiceRoleKey),
     legacyJwtSecretConfigured: Boolean(config.supabaseJwtSecret),
@@ -224,7 +229,7 @@ app.post('/accounts/prepare', requireAuthenticatedUser, async (req, res) => {
   }
 
   builder.addOperation(StellarSdk.Operation.changeTrust({
-    asset: cpinrAsset,
+    asset: usdcAsset,
     limit: config.trustlineLimit,
     source: accountId,
   }));
@@ -405,7 +410,7 @@ app.post('/add-money', requireAuthenticatedUser, requireWalletOwnership('account
     })
       .addOperation(StellarSdk.Operation.payment({
         destination: accountId,
-        asset: cpinrAsset,
+        asset: usdcAsset,
         amount,
       }))
       .addMemo(StellarSdk.Memo.text('add-money'))
@@ -520,8 +525,9 @@ function loadConfig() {
   const passphrase = process.env.STELLAR_NETWORK_PASSPHRASE || network.passphrase;
   const sponsorSecret = requireEnv('SPONSOR_SECRET');
   const distributionSecret = requireEnv('DISTRIBUTION_SECRET');
-  const assetCode = process.env.CPINR_ASSET_CODE || 'CPINR';
-  const assetIssuer = requireEnv('CPINR_ASSET_ISSUER');
+  const assetCode = 'USDC';
+  const expectedUsdcIssuer = networkName === 'public' ? USDC_ISSUERS.public : USDC_ISSUERS.testnet;
+  const assetIssuer = process.env.USDC_ASSET_ISSUER || expectedUsdcIssuer;
   const authRequired = readBooleanEnv('RELAYER_AUTH_REQUIRED', networkName === 'public');
   // The legacy faucet is testnet-only and opt-in. It can never run on public network.
   const addMoneyEnabled = networkName === 'testnet' && readBooleanEnv('ENABLE_TESTNET_FAUCET', false);
@@ -530,6 +536,10 @@ function loadConfig() {
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
   assertTrustedHorizonUrl(horizonUrl);
+
+  if (assetIssuer !== expectedUsdcIssuer) {
+    throw new Error(`USDC_ASSET_ISSUER must be Circle's canonical ${networkName} issuer`);
+  }
 
   if (authRequired && !supabaseJwtSecret && (!supabaseUrl || !supabaseServiceRoleKey)) {
     throw new Error('SUPABASE_JWT_SECRET or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY is required when relayer authentication is enabled');
@@ -556,7 +566,7 @@ function loadConfig() {
     addMoneyCooldownMs: Number(process.env.ADD_MONEY_COOLDOWN_MS || 24 * 60 * 60 * 1000),
     idempotencyTtlMs: Number(process.env.IDEMPOTENCY_TTL_MS || 10 * 60 * 1000),
     lowXlmThreshold: Number(process.env.LOW_XLM_THRESHOLD || 5),
-    lowAssetThreshold: Number(process.env.LOW_CPINR_THRESHOLD || 1000),
+    lowAssetThreshold: Number(process.env.LOW_USDC_THRESHOLD || 100),
     authRequired,
     supabaseJwtSecret,
     supabaseUrl,
@@ -1334,7 +1344,7 @@ function getStellarErrorMessage(resultCodes) {
   const operations = resultCodes?.operations || [];
 
   if (operations.includes('op_no_issuer')) {
-    return `The configured ${config.assetCode} issuer account does not exist on ${config.networkName}. Run the testnet asset setup before using Add Money.`;
+    return `Circle's ${config.assetCode} issuer is unavailable on ${config.networkName}. Verify the network and issuer configuration.`;
   }
 
   if (operations.includes('op_no_trust')) {
@@ -1413,7 +1423,7 @@ async function sendLowBalanceAlert({ sponsorXlm, distributionAsset, lowXlm, lowA
 
   const warnings = [
     lowXlm ? `Sponsor XLM balance is ${sponsorXlm}` : null,
-    lowAsset ? `Distribution CPINR balance is ${distributionAsset}` : null,
+    lowAsset ? `Distribution USDC balance is ${distributionAsset}` : null,
   ].filter(Boolean);
 
   await fetch(process.env.ALERT_WEBHOOK_URL, {

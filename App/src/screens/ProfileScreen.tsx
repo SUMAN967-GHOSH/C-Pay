@@ -18,7 +18,7 @@ import ViewShot from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { Screen, Section, ActionRow } from '../components';
 import { AlertManager } from '../utils/alert';
 import { formatWalletFingerprint, getCurrentUserCPayId } from '../utils/cpayId';
@@ -31,6 +31,7 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+  useTheme();
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [cpayId, setCpayId] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
@@ -320,7 +321,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Ionicons name="qr-code-outline" size={24} color={COLORS.primary} style={styles.qrCodeIcon} />
               <Text style={styles.qrCodeTitle}>My QR Code</Text>
             </View>
-            <Ionicons name={showQRCode ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.textSecondary} />
+            <Ionicons name={showQRCode ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.textMuted} />
           </View>
 
           {showQRCode && (
@@ -413,7 +414,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 value={notificationsEnabled}
                 onValueChange={handleToggleNotifications}
                 trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textSecondary}
+                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.textMuted}
               />
             }
           />
@@ -477,7 +478,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   profileHeader: {
     alignItems: 'center',
     marginBottom: SPACING.xl,
@@ -525,7 +526,7 @@ const styles = StyleSheet.create({
   },
   profileAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     flex: 1,
     marginRight: SPACING.sm,
@@ -577,7 +578,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
   },
   shareableQRCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     padding: SPACING.xl,
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
@@ -603,7 +604,7 @@ const styles = StyleSheet.create({
   },
   shareCardAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   shareCardFooter: {
@@ -614,18 +615,18 @@ const styles = StyleSheet.create({
   },
   shareCardFooterText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   qrCodeWrapper: {
     padding: SPACING.lg,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
     ...SHADOWS.md,
   },
   qrCodeDescription: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: SPACING.md,
     marginBottom: SPACING.md,
@@ -686,7 +687,7 @@ const styles = StyleSheet.create({
   },
   signOutHint: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -699,11 +700,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginBottom: SPACING.xs,
   },
   footerSubtext: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
-});
+}));

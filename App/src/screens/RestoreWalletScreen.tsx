@@ -26,7 +26,7 @@ import {
 } from '../services/cloudWalletBackup';
 import { cachePinForSession, hasWallet, recreateWalletFromSecret } from '../services/wallet';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 
 const FONT_SIZES = TYPOGRAPHY.sizes;
@@ -96,6 +96,7 @@ interface RestoreWalletScreenProps {
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ navigation, route }) => {
+  useTheme();
   const {
     verifiedEmail,
     walletAddress,
@@ -537,7 +538,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
                   value={recoveryPassword}
                   onChangeText={(v) => { setRecoveryPassword(v); setError(''); }}
                   placeholder="Enter your recovery password"
-                  placeholderTextColor={COLORS.textSecondary}
+                  placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="none"
                   autoCorrect={false}
                   secureTextEntry={!showPassword}
@@ -551,7 +552,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={22}
-                    color={COLORS.textSecondary}
+                    color={COLORS.textMuted}
                   />
                 </TouchableOpacity>
               </View>
@@ -627,7 +628,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
                 value={recoveryKey}
                 onChangeText={(v) => { setRecoveryKey(v); setError(''); }}
                 placeholder="Starts with S… (56 characters)"
-                placeholderTextColor={COLORS.textSecondary}
+                placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 secureTextEntry
@@ -809,7 +810,7 @@ export const RestoreWalletScreen: React.FC<RestoreWalletScreenProps> = ({ naviga
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -839,7 +840,7 @@ const styles = StyleSheet.create({
   },
   checkingSubtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: SPACING.sm,
     textAlign: 'center',
     lineHeight: 22,
@@ -866,7 +867,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -901,7 +902,7 @@ const styles = StyleSheet.create({
   },
   profileWallet: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   formGroup: {
@@ -1028,7 +1029,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: SPACING.md,
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   // Success screen
@@ -1046,7 +1047,7 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: SPACING.xl,
@@ -1080,7 +1081,7 @@ const styles = StyleSheet.create({
   },
   successWalletAddress: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     marginBottom: 2,
   },
@@ -1089,4 +1090,4 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '500',
   },
-});
+}));

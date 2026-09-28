@@ -1,16 +1,17 @@
-# C-Pay Stellar Relayer
+# C-Pay relayer
 
 Backend service that sponsors Stellar account setup, submits fee-bump payments, and runs the Horizon ledger ingest worker.
 
-## Setup
+## Required configuration
 
-```bash
-npm install
-cp .env.example .env
-npm start
+```env
+STELLAR_NETWORK=testnet
+SPONSOR_SECRET_KEY=S...
+DISTRIBUTION_SECRET_KEY=S...
+USDC_ASSET_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
 ```
 
-## Required Environment
+`USDC_ASSET_ISSUER` must match Circle's canonical issuer for the selected network. C-Pay has no asset-issuer key and cannot mint USDC. The distribution account must establish a USDC trustline and obtain testnet USDC from Circle's faucet.
 
 - `STELLAR_NETWORK`: `testnet` or `public`
 - `STELLAR_HORIZON_URL`: Horizon endpoint

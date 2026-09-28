@@ -1,5 +1,5 @@
 -- C-Pay Stellar Supabase schema
--- Run in the Supabase SQL editor for a fresh CPINR/Stellar setup.
+-- Run in the Supabase SQL editor for a fresh USDC/Stellar setup.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     profile_photo_url TEXT,
     display_name TEXT,
     stellar_network TEXT NOT NULL DEFAULT 'testnet',
-    cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR',
-    cpinr_asset_issuer TEXT,
+    asset_code TEXT NOT NULL DEFAULT 'USDC',
+    asset_issuer TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS merchants (
     total_transactions INTEGER NOT NULL DEFAULT 0,
     total_revenue NUMERIC(20, 7) NOT NULL DEFAULT 0,
     stellar_network TEXT NOT NULL DEFAULT 'testnet',
-    cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR',
-    cpinr_asset_issuer TEXT,
+    asset_code TEXT NOT NULL DEFAULT 'USDC',
+    asset_issuer TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     merchant_id UUID REFERENCES merchants(id) ON DELETE SET NULL,
     tx_hash TEXT UNIQUE NOT NULL,
     stellar_network TEXT NOT NULL DEFAULT 'testnet',
-    asset_code TEXT NOT NULL DEFAULT 'CPINR',
+    asset_code TEXT NOT NULL DEFAULT 'USDC',
     asset_issuer TEXT,
     to_address TEXT NOT NULL,
     from_address TEXT NOT NULL DEFAULT '',
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS merchant_qr_codes (
     merchant_id UUID REFERENCES merchants(id) ON DELETE CASCADE,
     qr_name TEXT NOT NULL,
     amount NUMERIC(20, 7),
-    asset_code TEXT NOT NULL DEFAULT 'CPINR',
+    asset_code TEXT NOT NULL DEFAULT 'USDC',
     asset_issuer TEXT,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     scan_count INTEGER NOT NULL DEFAULT 0,
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS add_money_claims (
     wallet_address TEXT NOT NULL,
     auth_user_id TEXT,
     amount NUMERIC(20, 7) NOT NULL CHECK (amount > 0),
-    asset_code TEXT NOT NULL DEFAULT 'CPINR',
+    asset_code TEXT NOT NULL DEFAULT 'USDC',
     asset_issuer TEXT,
     tx_hash TEXT UNIQUE,
     idempotency_key TEXT UNIQUE,
@@ -167,8 +167,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
-ALTER TABLE users ADD COLUMN IF NOT EXISTS cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR';
-ALTER TABLE users ADD COLUMN IF NOT EXISTS cpinr_asset_issuer TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS asset_code TEXT NOT NULL DEFAULT 'USDC';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS asset_issuer TEXT;
 ALTER TABLE users DROP COLUMN IF EXISTS pin_hash;
 
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpay_id TEXT UNIQUE;
@@ -192,8 +192,8 @@ ALTER TABLE merchants ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS total_transactions INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS total_revenue NUMERIC(20, 7) NOT NULL DEFAULT 0;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
-ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpinr_asset_code TEXT NOT NULL DEFAULT 'CPINR';
-ALTER TABLE merchants ADD COLUMN IF NOT EXISTS cpinr_asset_issuer TEXT;
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS asset_code TEXT NOT NULL DEFAULT 'USDC';
+ALTER TABLE merchants ADD COLUMN IF NOT EXISTS asset_issuer TEXT;
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE merchants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
@@ -201,7 +201,7 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id TEXT UNIQUE;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_type TEXT NOT NULL DEFAULT 'personal';
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS merchant_id UUID;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stellar_network TEXT NOT NULL DEFAULT 'testnet';
-ALTER TABLE transactions ADD COLUMN IF NOT EXISTS asset_code TEXT NOT NULL DEFAULT 'CPINR';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS asset_code TEXT NOT NULL DEFAULT 'USDC';
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS asset_issuer TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sender_name TEXT;
@@ -386,8 +386,8 @@ RETURNS TABLE (
   total_transactions INTEGER,
   total_revenue NUMERIC,
   stellar_network TEXT,
-  cpinr_asset_code TEXT,
-  cpinr_asset_issuer TEXT,
+  asset_code TEXT,
+  asset_issuer TEXT,
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ
 ) AS $$
@@ -415,8 +415,8 @@ RETURNS TABLE (
     m.total_transactions,
     m.total_revenue,
     m.stellar_network,
-    m.cpinr_asset_code,
-    m.cpinr_asset_issuer,
+    m.asset_code,
+    m.asset_issuer,
     m.created_at,
     m.updated_at
   FROM merchants m

@@ -73,7 +73,7 @@ _No crypto knowledge required_
 
 ## 🎯 Overview
 
-**C-Pay** transforms Stellar payments into a UPI-like experience. Users do not need to understand trustlines, fee bumps, sponsored reserves, contract IDs, or Stellar secret seeds. They verify an email address with Supabase OTP, create a PIN, create an encrypted cloud wallet backup, optionally enable biometrics, use a C-Pay ID, scan QR codes, and pay with CPINR.
+**C-Pay** transforms Stellar payments into a UPI-like experience. Users do not need to understand trustlines, fee bumps, sponsored reserves, contract IDs, or Stellar secret seeds. They verify an email address with Supabase OTP, create a PIN, create an encrypted cloud wallet backup, optionally enable biometrics, use a C-Pay ID, scan QR codes, and pay with USDC.
 
 ### Why C-Pay?
 
@@ -131,7 +131,7 @@ has, and describing them as planned overstated where the project stands.
 ### 📊 Current Project Snapshot
 
 ```text
-🌐 Network: Stellar testnet        🪙 Asset: CPINR
+🌐 Network: Stellar testnet        🪙 Asset: USDC
 📱 Mobile: Expo React Native       🔐 Wallet: Stellar keypair, encrypted locally
 🧾 Backend: Express relayer        🗄️ Data: Supabase
 📧 Auth: Supabase email OTP        ⚙️ Runtime relayer port: 3000
@@ -150,7 +150,7 @@ The mobile app is configured for a closed pilot first: users see C-Pay pilot cre
 
 ### Current Stellar Testnet Build
 
-This README does not keep an outdated APK link. Build the current Stellar/CPINR app from `App/` so the APK uses the latest relayer URL, CPINR issuer, and UI changes.
+This README does not keep an outdated APK link. Build the current Stellar/USDC app from `App/` so the APK uses the latest relayer URL, USDC issuer, and UI changes.
 
 ```bash
 cd App
@@ -190,7 +190,7 @@ C-Pay completed a closed testnet pilot with a small group of users. Feedback was
 ### Key Themes
 
 - **Withdrawal support** is the most requested feature. **Not implemented, and not planned** — it requires real-money settlement and regulatory approval this project does not have.
-- **Dark theme default** and **wallet address visibility** were requested for the home/profile screens. **Neither is implemented**; the app has no dark mode.
+- **Dark mode** now follows the device appearance setting across every app screen. The wallet-address visibility request remains open.
 - **Overall experience** was rated highly across sending, receiving, balance checks, and QR flows.
 - **Media-library permission** error was reported in Expo Go and resolved by building a development/production APK.
 
@@ -239,8 +239,8 @@ These values are public and define the current Stellar testnet environment.
 | Network passphrase | `Test SDF Network ; September 2015` |
 | Horizon URL | `https://horizon-testnet.stellar.org` |
 | Explorer | `https://stellar.expert/explorer/testnet` |
-| Asset | `CPINR:GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ` |
-| CPINR issuer public key | `GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ` |
+| Asset | `USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
+| USDC issuer public key | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
 
 > **Important:** Public keys are safe to document. Stellar secret seeds beginning with `S` must never be added to the mobile app or committed to source control.
 
@@ -307,13 +307,13 @@ Users should not need to know that a Stellar account, trustline, XDR, fee bump, 
 <summary><b>Payments</b></summary>
 
 - 📸 **QR Code Scanning** - Scan user QR codes.
-- 💸 **Send Money** - Send CPINR to Stellar accounts through a signed app transaction.
-- 🎁 **Add Money** - Relayer distributes configured CPINR amount from the distribution account.
+- 💸 **Send Money** - Send USDC to Stellar accounts through a signed app transaction.
+- 🎁 **Add Money** - Relayer distributes configured USDC amount from the distribution account.
 - ⏱️ **Claim Cooldown** - After a pilot credit claim, users see the remaining time before the next claim.
 - ⚡ **Sponsored Fees** - Relayer can submit fee-bump transactions so users do not manage fees directly.
 - 📊 **Transaction History** - Local-first transaction records with Supabase sync.
 - 🔎 **Explorer Links** - Stellar expert explorer URLs for accounts and transactions.
-- 🏦 **Account Readiness** - Relayer sponsors account creation and CPINR trustline setup.
+- 🏦 **Account Readiness** - Relayer sponsors account creation and USDC trustline setup.
 
 </details>
 
@@ -342,13 +342,13 @@ looking for those screens will not find them in `App/src/screens/`.
 
 ### 🌐 Platform Features
 
-- 🚀 **Stellar Testnet Rail** - Current app is built around Stellar testnet CPINR.
+- 🚀 **Stellar Testnet Rail** - Current app is built around Stellar testnet USDC.
 - 🧾 **Express Relayer** - Backend handles sponsored setup, Add Money, fee bumps, and status APIs.
 - 🌐 **Supabase Sync** - Users, transactions, Add Money claims, and encrypted wallet backups.
 - 🔒 **Rate Limiting** - Relayer uses request rate limits.
-- 🩺 **Health Monitoring** - `/health` reports sponsor XLM and distribution CPINR inventory.
-- 🚨 **Low Balance Alerts** - Optional webhook for low sponsor XLM or low CPINR.
-- 🧰 **Operator Scripts** - Key generation and testnet CPINR setup.
+- 🩺 **Health Monitoring** - `/health` reports sponsor XLM and distribution USDC inventory.
+- 🚨 **Low Balance Alerts** - Optional webhook for low sponsor XLM or low USDC.
+- 🧰 **Operator Scripts** - Key generation and testnet USDC setup.
 
 ---
 
@@ -363,14 +363,14 @@ flowchart LR
     supabase["Supabase Auth + Postgres<br/>users, transactions<br/>wallet_backups, add_money_claims"]
     storage["Supabase Storage<br/>profile photos"]
     relayer["Express Relayer<br/>sponsored setup, Add Money<br/>fee bumps"]
-    stellar["Stellar Testnet + Horizon<br/>accounts, trustlines, CPINR"]
+    stellar["Stellar Testnet + Horizon<br/>accounts, trustlines, USDC"]
 
     user --> app
     app <-->|email session, profile sync, backups| supabase
     app <-->|image upload/download| storage
     app -->|Bearer Supabase token + signed XDR| relayer
     relayer -->|verify token / persist claims| supabase
-    relayer -->|sponsor, fee-bump, distribute CPINR| stellar
+    relayer -->|sponsor, fee-bump, distribute USDC| stellar
 ```
 
 ### User Workflow Architecture
@@ -389,14 +389,14 @@ sequenceDiagram
     Supabase-->>App: Verify 8-digit code and create session
     App->>App: Create PIN, generate Stellar keypair, encrypt local wallet
     App->>Supabase: Save profile, email C-Pay ID, encrypted wallet backup
-    App->>Relayer: Prepare sponsored account and CPINR trustline
+    App->>Relayer: Prepare sponsored account and USDC trustline
     Relayer->>Chain: Submit sponsored setup transaction
     Chain-->>Relayer: Account and trustline confirmed
     Relayer-->>App: Return setup status
-    User->>App: Scan QR, Add Money, or send CPINR
+    User->>App: Scan QR, Add Money, or send USDC
     App->>Relayer: Send bearer token with signed XDR/payment request
     Relayer->>Supabase: Verify token and persist claim cooldown when configured
-    Relayer->>Chain: Submit fee-bump payment or CPINR distribution
+    Relayer->>Chain: Submit fee-bump payment or USDC distribution
     Chain-->>Relayer: Return transaction hash
     Relayer-->>App: Return receipt, failure, or claim countdown
     App->>Supabase: Sync transaction and profile state
@@ -433,7 +433,7 @@ relayer-service/
 │
 Blockchain/
 ├── scripts/create-keypairs.js  # Generate setup keypairs
-├── scripts/setup-testnet-asset.js
+├── scripts/setup-usdc-trustline.js
 ├── src/config.js
 ├── src/stellarRail.js
 └── test/stellarRail.test.js
@@ -505,7 +505,7 @@ App calls POST /accounts/submit
   ↓
 Relayer submits to Stellar
   ↓
-User account can receive CPINR
+User account can receive USDC
 ```
 
 </details>
@@ -520,9 +520,9 @@ App ensures account + trustline are ready
   ↓
 App calls POST /add-money
   ↓
-Relayer checks cooldown, amount, distribution CPINR
+Relayer checks cooldown, amount, distribution USDC
   ↓
-Distribution account sends CPINR to user
+Distribution account sends USDC to user
   ↓
 App saves transaction locally and syncs Supabase
 ```
@@ -537,7 +537,7 @@ User enters recipient or scans QR
   ↓
 App validates Stellar account and amount
   ↓
-App signs CPINR payment XDR locally
+App signs USDC payment XDR locally
   ↓
 App calls POST /payments/submit
   ↓
@@ -556,8 +556,8 @@ App stores and displays receipt
 users
   id, auth_user_id, wallet_address, cpay_id, email, phone_number,
   biometric_enabled,
-  profile_photo_url, display_name, stellar_network, cpinr_asset_code,
-  cpinr_asset_issuer, created_at, updated_at
+  profile_photo_url, display_name, stellar_network, asset_code,
+  asset_issuer, created_at, updated_at
 
 -- merchants / merchant_qr_codes: DROPPED.
 -- See supabase/migrations/20260828000001_drop_merchant_schema.sql. The merchant
@@ -737,31 +737,24 @@ cp .env.example .env
 npm run create:keypairs
 ```
 
-The keypair script prints:
+The keypair script prints separate sponsor and distribution keypairs. C-Pay does not create or hold an issuer key.
 
-- `ASSET_ISSUER_PUBLIC_KEY` and `ASSET_ISSUER_SECRET`
-- `ASSET_DISTRIBUTION_PUBLIC_KEY` and `ASSET_DISTRIBUTION_SECRET`
-
-Testnet asset setup:
+Testnet USDC trustline setup:
 
 ```text
 STELLAR_NETWORK=testnet
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-ASSET_CODE=CPINR
-ASSET_ISSUER_PUBLIC_KEY=<issuer public key>
-ASSET_DISTRIBUTION_PUBLIC_KEY=<distribution public key>
-ASSET_ISSUER_SECRET=<issuer secret>
-ASSET_DISTRIBUTION_SECRET=<distribution secret>
-INITIAL_SUPPLY=1000000000
+USDC_ASSET_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+DISTRIBUTION_PUBLIC_KEY=<distribution public key>
+DISTRIBUTION_SECRET_KEY=<distribution secret>
 TRUSTLINE_LIMIT=1000000000
-LOCK_ISSUER_AFTER_SETUP=false
 ```
 
 Run:
 
 ```bash
-npm run setup:testnet
+npm run setup:usdc
 ```
 
 ### 3. Relayer Setup
@@ -783,8 +776,8 @@ STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 STELLAR_BASE_FEE=100
 
-CPINR_ASSET_CODE=CPINR
-CPINR_ASSET_ISSUER=GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ
+USDC_ASSET_CODE=USDC
+USDC_ASSET_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
 
 SPONSOR_SECRET=<sponsor secret seed>
 DISTRIBUTION_SECRET=<distribution secret seed>
@@ -808,7 +801,7 @@ SUPABASE_JWT_SECRET=
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=100
 LOW_XLM_THRESHOLD=5
-LOW_CPINR_THRESHOLD=1000
+LOW_USDC_THRESHOLD=1000
 ALERT_WEBHOOK_URL=
 ```
 
@@ -831,11 +824,11 @@ Healthy Add Money requires:
   "status": "healthy",
   "lowXlm": false,
   "lowAsset": false,
-  "distributionCpinrBalance": "1000000000.0000000"
+  "distributionUsdcBalance": "1000000000.0000000"
 }
 ```
 
-If `distributionCpinrBalance` is `0`, Add Money will fail even if the relayer status is healthy.
+If `distributionUsdcBalance` is `0`, Add Money will fail even if the relayer status is healthy.
 
 For deployed or authenticated relayer requests, use one of these auth setups:
 
@@ -862,8 +855,7 @@ EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
 EXPO_PUBLIC_STELLAR_BASE_FEE=100
 EXPO_PUBLIC_STELLAR_EXPLORER_URL=https://stellar.expert/explorer/testnet
 
-EXPO_PUBLIC_CPINR_ASSET_CODE=CPINR
-EXPO_PUBLIC_CPINR_ASSET_ISSUER=GA2SFZ4GJVMLPULSJMTY7RMIOPQD5W5JGTDSD3N7I2PR5KZRFGPQF5BJ
+EXPO_PUBLIC_USDC_ASSET_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
 
 EXPO_PUBLIC_STELLAR_RELAYER_URL=http://<your computer LAN IP>:3000
 
@@ -906,8 +898,7 @@ npx expo start --clear
 | `EXPO_PUBLIC_STELLAR_NETWORK_PASSPHRASE` | Yes | Stellar passphrase |
 | `EXPO_PUBLIC_STELLAR_BASE_FEE` | Yes | Base fee in stroops |
 | `EXPO_PUBLIC_STELLAR_EXPLORER_URL` | Yes | Stellar explorer base URL |
-| `EXPO_PUBLIC_CPINR_ASSET_CODE` | Yes | `CPINR` |
-| `EXPO_PUBLIC_CPINR_ASSET_ISSUER` | Yes | CPINR issuer public key |
+| `EXPO_PUBLIC_USDC_ASSET_ISSUER` | Yes | Circle USDC issuer for the selected network |
 | `EXPO_PUBLIC_STELLAR_RELAYER_URL` | Yes for real device/builds | Relayer URL reachable from the app |
 | `EXPO_PUBLIC_PILOT_MODE` | Optional | Keep `true` for closed-pilot/test-credit UX |
 | `EXPO_PUBLIC_PILOT_CREDIT_NAME` | Optional | User-facing pilot credit name |
@@ -927,12 +918,11 @@ npx expo start --clear
 | `STELLAR_NETWORK` | Yes | `testnet` or `public` |
 | `STELLAR_HORIZON_URL` | Yes | Stellar Horizon endpoint |
 | `STELLAR_NETWORK_PASSPHRASE` | Yes | Stellar network passphrase |
-| `CPINR_ASSET_CODE` | Yes | `CPINR` |
-| `CPINR_ASSET_ISSUER` | Yes | CPINR issuer public key |
+| `USDC_ASSET_ISSUER` | Yes | Circle USDC issuer for the selected network |
 | `SPONSOR_SECRET` | Yes | Sponsor account secret seed |
 | `DISTRIBUTION_SECRET` | Yes | Distribution account secret seed |
 | `STARTING_BALANCE` | Yes | XLM for sponsored user account creation |
-| `TRUSTLINE_LIMIT` | Yes | CPINR trustline limit |
+| `TRUSTLINE_LIMIT` | Yes | USDC trustline limit |
 | `FEE_BUMP_MULTIPLIER` | Yes | Fee-bump max fee multiplier |
 | `TRANSACTION_TIMEOUT_SECONDS` | Yes | Stellar transaction timeout |
 | `ENABLE_TESTNET_FAUCET` | No | Legacy testnet-only faucet; defaults to `false` and cannot run on public network |
@@ -948,7 +938,7 @@ npx expo start --clear
 | `RATE_LIMIT_WINDOW_MS` | Yes | Rate limit window |
 | `RATE_LIMIT_MAX_REQUESTS` | Yes | Rate limit count |
 | `LOW_XLM_THRESHOLD` | Yes | Sponsor XLM warning threshold |
-| `LOW_CPINR_THRESHOLD` | Yes | Distribution CPINR warning threshold |
+| `LOW_USDC_THRESHOLD` | Yes | Distribution USDC warning threshold |
 | `ALERT_WEBHOOK_URL` | Optional | Low-balance alert webhook |
 
 ### 🦀 Blockchain Variables
@@ -958,14 +948,10 @@ npx expo start --clear
 | `STELLAR_NETWORK` | Yes | `testnet` or `public` |
 | `STELLAR_HORIZON_URL` | Yes | Horizon endpoint |
 | `STELLAR_NETWORK_PASSPHRASE` | Yes | Network passphrase |
-| `ASSET_CODE` | Yes | `CPINR` |
-| `ASSET_ISSUER_PUBLIC_KEY` | Yes | Issuer public key |
-| `ASSET_DISTRIBUTION_PUBLIC_KEY` | Setup | Distribution public key |
-| `ASSET_ISSUER_SECRET` | Testnet setup | Issuer secret seed |
-| `ASSET_DISTRIBUTION_SECRET` | Testnet setup | Distribution secret seed |
-| `INITIAL_SUPPLY` | Setup | CPINR amount issued to distribution |
+| `USDC_ASSET_ISSUER` | Yes | Circle USDC issuer for the selected network |
+| `DISTRIBUTION_PUBLIC_KEY` | Setup | Distribution public key |
+| `DISTRIBUTION_SECRET_KEY` | Testnet setup | Distribution secret seed |
 | `TRUSTLINE_LIMIT` | Setup | Distribution trustline limit |
-| `LOCK_ISSUER_AFTER_SETUP` | Optional | Lock issuer master key after setup |
 
 ---
 
@@ -1015,11 +1001,11 @@ npx expo start --clear
 | `GET` | `/` | Service information |
 | `GET` | `/health` | Health and inventory |
 | `GET` | `/account/:accountId/status` | Account and trustline readiness |
-| `GET` | `/account/:accountId/balance` | CPINR and XLM balance |
+| `GET` | `/account/:accountId/balance` | USDC and XLM balance |
 | `POST` | `/accounts/prepare` | Build sponsored setup transaction |
 | `POST` | `/accounts/submit` | Submit signed setup transaction |
 | `POST` | `/payments/submit` | Validate and submit fee-bump payment |
-| `POST` | `/add-money` | Send CPINR from distribution |
+| `POST` | `/add-money` | Send USDC from distribution |
 | `GET` | `/tx/:hash` | Transaction status |
 
 ---
@@ -1050,7 +1036,7 @@ npx expo start --clear
 <tr>
 <td>Blockchain</td>
 <td>Stellar testnet, Horizon</td>
-<td>CPINR balances, payment rail transactions</td>
+<td>USDC balances, payment rail transactions</td>
 </tr>
 <tr>
 <td>Database</td>
@@ -1125,7 +1111,7 @@ These policy values are backend `.env` values used by `relayer-service/server.js
 | Item | Cost | Notes |
 | --- | --- | --- |
 | Stellar testnet XLM | Free | Fund test accounts with Friendbot |
-| CPINR test asset | Free | Issued by the testnet issuer account |
+| Testnet USDC | Free | Obtain from Circle's testnet faucet after creating the trustline |
 | Supabase local testing | Free tier possible | Depends on project usage |
 | Expo development | Free locally | EAS builds depend on Expo account limits |
 | Relayer local run | Free | Runs on your machine on port `3000` |
@@ -1163,7 +1149,7 @@ These policy values are backend `.env` values used by `relayer-service/server.js
 
 - `SPONSOR_SECRET` and `DISTRIBUTION_SECRET` stay in relayer infrastructure only.
 - Relayer validates signed payment XDR before submission.
-- Relayer only accepts the configured CPINR asset.
+- Relayer only accepts the configured USDC asset.
 - Relayer rejects invalid accounts, invalid XDR, and over-limit amounts.
 - Express rate limiting protects public endpoints.
 - When enabled, relayer auth verifies Supabase access tokens before protected requests.
@@ -1296,16 +1282,16 @@ EXPO_PUBLIC_STELLAR_RELAYER_URL=http://<your-laptop-lan-ip>:3000
 <details open>
 <summary><b>Add Money fails while health says healthy</b></summary>
 
-`status: "healthy"` means the process can run and read Stellar. Add Money also needs CPINR inventory.
+`status: "healthy"` means the process can run and read Stellar. Add Money also needs USDC inventory.
 
 Check:
 
-- `distributionCpinrBalance`
+- `distributionUsdcBalance`
 - `lowAsset`
 - `sponsorXlmBalance`
 - `lowXlm`
 
-If `distributionCpinrBalance` is `0`, issue CPINR to the distribution account or run the testnet asset setup with the distribution account used by the relayer.
+If `distributionUsdcBalance` is `0`, verify the trustline and fund the distribution account from Circle's testnet faucet.
 
 </details>
 
@@ -1380,10 +1366,10 @@ npm run build:android:production-apk
 
 Check:
 
-- `EXPO_PUBLIC_CPINR_ASSET_ISSUER` matches the issuer configured in your `.env`.
+- `EXPO_PUBLIC_USDC_ASSET_ISSUER` matches the issuer configured in your `.env`.
 - User account exists on Stellar.
-- User account has a CPINR trustline.
-- Relayer `/account/<wallet>/balance` returns a CPINR balance.
+- User account has a USDC trustline.
+- Relayer `/account/<wallet>/balance` returns a USDC balance.
 - Expo was restarted with `npx expo start --clear`.
 
 </details>
@@ -1406,8 +1392,8 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 - Set `RELAYER_AUTH_REQUIRED=true` for production/public-network relayer deployments.
 - Prefer `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` on the relayer for Supabase Auth API token verification and Add Money claim persistence.
 - Use `SUPABASE_JWT_SECRET` only when your Supabase project still uses legacy HS256 JWT verification.
-- Keep `ENABLE_TESTNET_FAUCET=false`; production money-in requires a licensed partner.
-- Monitor sponsor XLM and distribution CPINR.
+- Keep `ENABLE_ADD_MONEY=false` on public network unless you have a real abuse-resistant funding policy.
+- Monitor sponsor XLM and distribution USDC.
 - Keep issuer secrets offline or protected by multisig.
 - Apply `App/supabase_schema.sql` after this update to replace the old permissive Supabase RLS policies with user-scoped policies and limited lookup RPCs.
 - Keep phone OTP disabled until an SMS provider such as Twilio is configured; email OTP is the current production-pilot path.
@@ -1423,7 +1409,7 @@ That is expected for the MVP. The active verification path is Supabase email OTP
 - ✅ Expo app onboarding, PIN, biometric, profile, wallet storage
 - ✅ Supabase email OTP onboarding with phone OTP paused for future SMS provider setup
 - ✅ Encrypted cloud wallet backup and restore after app data loss
-- ✅ CPINR issued asset on Stellar testnet
+- ✅ USDC issued asset on Stellar testnet
 - ✅ Sponsored account and trustline setup
 - ✅ Add Money through relayer distribution account
 - ✅ Fee-bump payment submission
@@ -1459,6 +1445,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, PR expectations, UX gu
 
 **C-Pay: UPI-like payments on Stellar**
 
-Made for simple CPINR payments, sponsored setup, and QR flows on Stellar testnet.
+Made for simple USDC payments, sponsored setup, and QR flows on Stellar testnet.
 
 </div>

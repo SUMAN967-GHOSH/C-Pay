@@ -37,7 +37,7 @@ const classifyCategory = (errorCode: string | undefined, lowerMessage: string): 
   return 'retryable';
 };
 
-const safeNoDeductionText = 'Your pilot credits are safe - no amount was deducted.';
+const safeNoDeductionText = 'Your USDC is safe - no amount was deducted.';
 
 const getErrorText = (error: any): string => {
   const candidates = [
@@ -144,7 +144,7 @@ const buildFailureCopy = (error: any): Omit<PaymentFailureCopy, 'category'> => {
   ) {
     return {
       errorMessage: 'Insufficient Balance',
-      errorReason: 'You do not have enough pilot credits or network balance to complete this payment.',
+      errorReason: 'You do not have enough USDC or network balance to complete this payment.',
       errorCode,
     };
   }

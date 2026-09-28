@@ -13,7 +13,7 @@ import { getBalance, isValidAccountId, transferTokens } from '../services/blockc
 import { saveTransaction, getUserDisplayName } from '../services/storage';
 import { getAuthenticatedWallet } from '../utils/biometric';
 import { formatWalletFingerprint, getCPayIdByWallet, isValidCPayId, getWalletAddressFromCPayId } from '../utils/cpayId';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import {
   Button,
   Screen,
@@ -25,7 +25,7 @@ import {
   PaymentReviewSheet,
 } from '../components';
 import { AlertManager } from '../utils/alert';
-import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount } from '../utils/currency';
+import { MONEY_SYMBOL, MONEY_UNIT_LABEL, formatMoneyAmount, formatMoneyBalance } from '../utils/currency';
 import { PILOT_TESTNET_TEXT } from '../utils/pilot';
 import { getPaymentFailureCopy } from '../utils/paymentFailure';
 import { usePaymentIntent } from '../hooks/usePaymentIntent';
@@ -36,12 +36,13 @@ interface SendMoneyScreenProps {
 }
 
 export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, route }) => {
+  useTheme();
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [recipientAddress, setRecipientAddress] = useState<string>('');
   const [recipientInput, setRecipientInput] = useState<string>(''); // Store original input (C-Pay ID or wallet)
   const [recipientName, setRecipientName] = useState<string>('');
   const [recipientCPayId, setRecipientCPayId] = useState<string>('');
-  const [amount, setAmount] = useState<string>(''); // User enters pilot credit amount.
+  const [amount, setAmount] = useState<string>(''); // User enters USDC, up to seven decimals.
   const [note, setNote] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState<string>('0');
@@ -85,8 +86,8 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       setRecipientName(routeRecipientName);
     }
     if (route?.params?.amount && parseFloat(route.params.amount) > 0) {
-      // Amount is already in the user-visible credit unit.
-      setAmount(parseFloat(route.params.amount).toFixed(2));
+      // QR/deep-link amounts are already USDC strings validated to seven decimals.
+      setAmount(String(route.params.amount).trim());
       setHasPresetAmount(true);
     }
     if (route?.params?.note) {
@@ -140,7 +141,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   const loadBalance = async (address: string) => {
     try {
       const formatted = await getBalance(address);
-      setBalance(parseFloat(formatted).toFixed(2));
+      setBalance(formatted);
     } catch (error) {
       console.error('Error loading balance:', error);
       setBalance('0.00');
@@ -470,7 +471,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       preset="scroll"
       loading={loading || submitting}
       loadingText="Processing payment..."
-      header={<Header title="Send Pilot Credits" onBack={handleBackPress} />}
+      header={<Header title="Send USDC" onBack={handleBackPress} />}
       bottomAction={
         <BottomActionBar>
           <Button
@@ -494,10 +495,10 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
       {/* Balance Card - Hidden when scanned from other places */}
       {!hideBalance && (
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Credits</Text>
+          <Text style={styles.balanceLabel}>Available USDC</Text>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceCurrency}>{MONEY_SYMBOL}</Text>
-            <Text style={styles.balanceAmount}>{parseFloat(balance).toFixed(2)}</Text>
+            <Text style={styles.balanceAmount}>{formatMoneyBalance(balance)}</Text>
           </View>
         </View>
       )}
@@ -605,7 +606,7 @@ export const SendMoneyScreen: React.FC<SendMoneyScreenProps> = ({ navigation, ro
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   field: {
     marginBottom: SPACING.xl,
   },
@@ -659,7 +660,7 @@ const styles = StyleSheet.create({
   recipientCardTitle: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -674,7 +675,7 @@ const styles = StyleSheet.create({
   },
   recipientCardAddress: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   changeRecipientButton: {
@@ -687,4 +688,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-});
+}));

@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { sendLoginEmailOTP, verifyLoginEmailOTP, getRemainingAttempts } from '../services/auth';
 import { hasWallet } from '../services/wallet';
 import { supabase } from '../services/supabase';
-import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY, BORDER_RADIUS, SHADOWS, createThemedStyles, useTheme } from '../constants/theme';
 import { AlertManager } from '../utils/alert';
 import { OnboardingProgress, Screen, FormField, InfoBanner, Button } from '../components';
 import {
@@ -53,6 +53,7 @@ interface EmailVerificationScreenProps {
 export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({
   navigation,
 }) => {
+  useTheme();
   const [emailAddress, setEmailAddress] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState('');
@@ -448,7 +449,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
 
             {/* Security Notice */}
             <View style={styles.securityNotice}>
-              <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.textSecondary} style={styles.securityIcon} />
+              <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.textMuted} style={styles.securityIcon} />
               <Text style={styles.securityText}>
                 Your email code confirms secure account access
               </Text>
@@ -458,7 +459,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles((COLORS) => ({
   content: {
     flex: 1,
     padding: SPACING.lg,
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: isSmallDevice ? FONT_SIZES.sm : FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   inputSection: {
@@ -544,7 +545,7 @@ const styles = StyleSheet.create({
   otpDigit: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   otpDigitFilled: {
     color: COLORS.primary,
@@ -566,7 +567,7 @@ const styles = StyleSheet.create({
   },
   otpHint: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontWeight: '500',
   },
   timerContainer: {
@@ -575,7 +576,7 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   resendText: {
     fontSize: FONT_SIZES.md,
@@ -602,8 +603,8 @@ const styles = StyleSheet.create({
   },
   securityText: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textAlign: 'center',
     flex: 1,
   },
-});
+}));
