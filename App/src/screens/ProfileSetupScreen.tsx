@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useRef, useState } from 'react';
 import {
   View,
@@ -53,13 +54,13 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
         setProfilePhoto(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      Logger.error('Error picking image:', error);
     }
   };
 
   const uploadProfilePhoto = async (photoUri: string, address: string): Promise<string | null> => {
     try {
-      console.log('Uploading profile photo...');
+      Logger.info('Uploading profile photo...');
 
       // Read file as base64
       const base64 = await fetch(photoUri)
@@ -96,7 +97,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
         });
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        Logger.error('Upload error:', uploadError);
         return null;
       }
 
@@ -107,7 +108,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
 
       return urlData.publicUrl;
     } catch (error) {
-      console.error('Error uploading photo:', error);
+      Logger.error('Error uploading photo:', error);
       return null;
     }
   };
@@ -147,7 +148,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       );
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      Logger.error('Database error:', dbError);
     }
   };
 
@@ -204,7 +205,7 @@ export const ProfileSetupScreen: React.FC<ProfileSetupScreenProps> = ({ navigati
       // Cloud backup protects the wallet before optional biometric setup.
       navigation.replace('CloudBackupSetup');
     } catch (error) {
-      console.error('Profile setup error:', error);
+      Logger.error('Profile setup error:', error);
       completingRef.current = false;
       setLoading(false);
       AlertManager.alert('Error', 'Failed to save profile. Please try again.', undefined, { type: 'error' });

@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -123,7 +124,7 @@ export const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error sharing receipt:', error);
+      Logger.error('Error sharing receipt:', error);
     }
   };
 

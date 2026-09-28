@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState } from 'react';
 import {
   View,
@@ -47,7 +48,7 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
         setTimeout(() => setCurrentPin(''), 300);
       }
     } catch (err) {
-      console.error('PIN verification error:', err);
+// [SECURITY] Removed sensitive log: console.error('PIN verification error:', err);
       setError('Error verifying PIN');
       setTimeout(() => setCurrentPin(''), 300);
     }
@@ -100,7 +101,7 @@ export const ChangePINScreen: React.FC<ChangePINScreenProps> = ({ navigation }) 
         ]
       );
     } catch (err: any) {
-      console.error('Failed to change PIN:', err);
+// [SECURITY] Removed sensitive log: console.error('Failed to change PIN:', err);
       setError(err.message || 'Failed to update PIN');
       setLoading(false);
       

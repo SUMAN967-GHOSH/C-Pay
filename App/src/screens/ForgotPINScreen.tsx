@@ -1,3 +1,4 @@
+import { Logger } from '../utils/logger';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -67,7 +68,7 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
         );
       }
     } catch (error) {
-      console.error('Error checking availability:', error);
+      Logger.error('Error checking availability:', error);
     }
   };
 
@@ -95,7 +96,7 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      console.error('Recovery error:', error);
+      Logger.error('Recovery error:', error);
       
       if (error.message?.includes('cancel')) {
         AlertManager.alert('Cancelled', 'Recovery was cancelled');
@@ -170,7 +171,7 @@ export const ForgotPINScreen: React.FC<ForgotPINScreenProps> = ({ navigation }) 
           ]
         );
       } catch (error: any) {
-        console.error('PIN reset error:', error);
+// [SECURITY] Removed sensitive log: console.error('PIN reset error:', error);
         AlertManager.alert('Error', 'Failed to reset PIN. Please try again.');
         setStep('new-pin');
         setNewPin('');
